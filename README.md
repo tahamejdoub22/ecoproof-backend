@@ -1,4 +1,3 @@
-# ecoproof-backend
 # Ecoproof Backend ♻️
 
 Ecoproof is a fraud-resistant recycling verification platform designed for cross-platform mobile applications.
