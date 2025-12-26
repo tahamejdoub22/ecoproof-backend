@@ -39,7 +39,7 @@ export class StorageService {
    * Upload image to Supabase Storage
    */
   async uploadImage(
-    file: Express.Multer.File,
+    file: any,
     userId: string,
     actionId: string,
   ): Promise<{ url: string; hash: string }> {
@@ -126,7 +126,7 @@ export class StorageService {
   /**
    * Validate image file
    */
-  private validateImage(file: Express.Multer.File): void {
+  private validateImage(file: any): void {
     // Check MIME type
     const allowedTypes = ['image/jpeg', 'image/png'];
     if (!allowedTypes.includes(file.mimetype)) {

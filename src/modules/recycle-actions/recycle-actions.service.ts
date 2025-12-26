@@ -1,7 +1,8 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { RecycleAction, ActionStatus, MaterialType } from '../../entities/recycle-action.entity';
+import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
+import { MaterialType } from '../../entities/recycling-point.entity';
 import { RecyclingPoint } from '../../entities/recycling-point.entity';
 import { User } from '../../entities/user.entity';
 import { StorageService } from '../storage/storage.service';
@@ -69,10 +70,10 @@ export class RecycleActionsService {
   async submit(
     userId: string,
     dto: SubmitActionDto,
-    imageFile: Express.Multer.File,
+    imageFile: any,
     ipAddress?: string,
     userAgent?: string,
-  ): Promise<{ verified: boolean; points?: number; reason?: string }> {
+  ): Promise<{ verified: boolean; points?: number; reason?: string; actionId: string; status: string; verificationScore?: number }> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();

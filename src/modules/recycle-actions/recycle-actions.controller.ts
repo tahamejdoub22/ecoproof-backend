@@ -13,6 +13,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { RecycleActionsService } from './recycle-actions.service';
 import { SubmitActionDto } from '../../common/dto/submit-action.dto';
 import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
@@ -21,6 +22,8 @@ import { ApiStandardResponse, ApiErrorResponse } from '../../common/decorators/a
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../../entities/user.entity';
 
+@ApiTags('Recycle Actions')
+@ApiBearerAuth()
 @Controller('api/v1/recycle-actions')
 @UseGuards(JwtAuthGuard)
 export class RecycleActionsController {
@@ -29,6 +32,11 @@ export class RecycleActionsController {
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(FileInterceptor('image'))
+  @ApiOperation({
+    summary: 'Submit recycling action',
+    description: 'Submit a recycling action with image and metadata. The action will be verified asynchronously.',
+  })
+  @ApiConsumes('multipart/form-data')
   @ApiStandardResponse(SubmitActionResponseDto, {
     status: 202,
     description: 'Recycling action submitted successfully. Processing asynchronously.',
@@ -43,16 +51,16 @@ export class RecycleActionsController {
   @ApiErrorResponse(401, 'Unauthorized')
   @ApiErrorResponse(429, 'Rate limit exceeded')
   async submit(
-    @Request() req: { user: User },
+    @Request() req: { user: User; headers: any },
     @Body() dto: SubmitActionDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
   ): Promise<SubmitActionResponseDto> {
     if (!file) {
       throw new BadRequestException('Image file is required');
     }
 
-    const ipAddress = req.headers['x-forwarded-for'] as string;
-    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.headers?.['x-forwarded-for'] as string;
+    const userAgent = req.headers?.['user-agent'];
 
     return this.actionsService.submit(
       req.user.id,
@@ -64,6 +72,11 @@ export class RecycleActionsController {
   }
 
   @Get('my-actions')
+  @ApiOperation({
+    summary: 'Get my recycling actions',
+    description: 'Get paginated list of recycling actions for the authenticated user',
+  })
+  @ApiErrorResponse(401, 'Unauthorized')
   async getMyActions(
     @Request() req: { user: User },
     @Query() pagination: PaginationDto,

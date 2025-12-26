@@ -80,12 +80,40 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Ecoproof API')
-      .setDescription('Smart Recycling Verification Backend')
+      .setDescription('Smart Recycling Verification Backend API Documentation\n\n' +
+        'This API provides endpoints for:\n' +
+        '- User authentication and registration\n' +
+        '- Recycling point management\n' +
+        '- Recycling action submission and verification\n' +
+        '- User profile and rewards\n' +
+        '- Health checks\n\n' +
+        'All endpoints use JWT Bearer authentication except for public endpoints.')
       .setVersion('1.0')
-      .addBearerAuth()
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT',
+          description: 'Enter JWT token',
+          in: 'header',
+        },
+        'JWT-auth',
+      )
+      .addTag('Authentication', 'User registration, login, and token refresh')
+      .addTag('Users', 'User profile management')
+      .addTag('Recycling Points', 'Recycling point information and location search')
+      .addTag('Recycle Actions', 'Submit and manage recycling actions')
+      .addTag('Health', 'Health check endpoints')
       .build();
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+      },
+    });
   }
 
   // Graceful shutdown

@@ -1,18 +1,20 @@
 import { Injectable, ExecutionContext } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
-  protected throwThrottlingException(context: ExecutionContext): void {
+  protected async throwThrottlingException(context: ExecutionContext): Promise<void> {
     const request = context.switchToHttp().getRequest<Request>();
-    const response = context.switchToHttp().getResponse();
+    const response = context.switchToHttp().getResponse<Response>();
+    
+    // Get throttler options
+    const throttlerOptions = this.options;
+    const limit = throttlerOptions[0]?.limit || 100;
+    const ttl = throttlerOptions[0]?.ttl || 60000;
     
     // Set rate limit headers
-    const limit = this.getLimitValue(context);
-    const ttl = this.getTracker(context).getTimeToExpire();
-    
-    response.setHeader('X-RateLimit-Limit', limit);
+    response.setHeader('X-RateLimit-Limit', limit.toString());
     response.setHeader('X-RateLimit-Remaining', '0');
     response.setHeader('X-RateLimit-Reset', new Date(Date.now() + ttl).toISOString());
     
