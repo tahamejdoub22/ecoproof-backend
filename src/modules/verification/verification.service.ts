@@ -6,12 +6,48 @@ import { RecyclingPoint, MaterialType } from '../../entities/recycling-point.ent
 import { User } from '../../entities/user.entity';
 import { AIVerificationService } from '../ai-verification/ai-verification.service';
 import { StorageService } from '../storage/storage.service';
+import { ValidationMessages, ValidationHints } from '../../common/dto/validation-messages';
 
 export interface VerificationResult {
   verified: boolean;
   score: number;
   reason?: string;
   aiScore?: number;
+  details?: {
+    objectDetection?: {
+      passed: boolean;
+      confidence?: number;
+      boundingBoxArea?: number;
+      frameCount?: number;
+      motionScore?: number;
+      issues?: string[];
+    };
+    location?: {
+      passed: boolean;
+      distance?: number;
+      gpsAccuracy?: number;
+      issues?: string[];
+    };
+    imageUniqueness?: {
+      passed: boolean;
+      hammingDistance?: number;
+      issues?: string[];
+    };
+    frameSequence?: {
+      passed: boolean;
+      windowMs?: number;
+      maxGapMs?: number;
+      issues?: string[];
+    };
+    aiVerification?: {
+      passed: boolean;
+      detectedType?: string;
+      confidence?: number;
+      authentic?: boolean;
+      issues?: string[];
+    };
+  };
+  suggestions?: string[];
 }
 
 @Injectable()
@@ -68,6 +104,13 @@ export class VerificationService {
           verified: false,
           score: 0.0,
           reason: objectValidation.reason,
+          details: {
+            objectDetection: {
+              passed: false,
+              ...objectValidation.details,
+            },
+          },
+          suggestions: objectValidation.suggestions,
         };
       }
 
@@ -79,6 +122,17 @@ export class VerificationService {
           verified: false,
           score: 0.0,
           reason: locationValidation.reason,
+          details: {
+            objectDetection: {
+              passed: true,
+              ...objectValidation.details,
+            },
+            location: {
+              passed: false,
+              ...locationValidation.details,
+            },
+          },
+          suggestions: locationValidation.suggestions,
         };
       }
 
@@ -90,6 +144,21 @@ export class VerificationService {
           verified: false,
           score: 0.0,
           reason: uniquenessCheck.reason,
+          details: {
+            objectDetection: {
+              passed: true,
+              ...objectValidation.details,
+            },
+            location: {
+              passed: true,
+              ...locationValidation.details,
+            },
+            imageUniqueness: {
+              passed: false,
+              ...uniquenessCheck.details,
+            },
+          },
+          suggestions: uniquenessCheck.suggestions,
         };
       }
 
@@ -101,6 +170,25 @@ export class VerificationService {
           verified: false,
           score: 0.0,
           reason: frameValidation.reason,
+          details: {
+            objectDetection: {
+              passed: true,
+              ...objectValidation.details,
+            },
+            location: {
+              passed: true,
+              ...locationValidation.details,
+            },
+            imageUniqueness: {
+              passed: true,
+              ...uniquenessCheck.details,
+            },
+            frameSequence: {
+              passed: false,
+              ...frameValidation.details,
+            },
+          },
+          suggestions: frameValidation.suggestions,
         };
       }
 
@@ -135,7 +223,40 @@ export class VerificationService {
         verified,
         score: verificationScore,
         aiScore: aiVerification.score,
-        reason: verified ? undefined : `Verification score ${verificationScore} below threshold ${this.MIN_VERIFICATION_SCORE}`,
+        reason: verified
+          ? undefined
+          : `Verification score ${(verificationScore * 100).toFixed(1)}% is below required ${(this.MIN_VERIFICATION_SCORE * 100).toFixed(0)}%`,
+        details: {
+          objectDetection: {
+            passed: true,
+            ...objectValidation.details,
+          },
+          location: {
+            passed: true,
+            ...locationValidation.details,
+          },
+          imageUniqueness: {
+            passed: true,
+            ...uniquenessCheck.details,
+          },
+          frameSequence: {
+            passed: true,
+            ...frameValidation.details,
+          },
+          aiVerification: {
+            passed: aiVerification.score >= 0.7,
+            detectedType: aiVerification.result?.objectType,
+            confidence: aiVerification.result?.confidence,
+            authentic: aiVerification.result?.authentic,
+            issues: aiVerification.score < 0.7 ? ['AI verification score too low'] : undefined,
+          },
+        },
+        suggestions: verified ? undefined : [
+          'Try: Ensure object is clearly visible and well-lit',
+          'Try: Keep camera steady during capture',
+          'Try: Move closer to the recycling point',
+          'Try: Wait for better GPS accuracy',
+        ],
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -147,50 +268,86 @@ export class VerificationService {
   }
 
   /**
-   * Validate object detection metadata
+   * Validate object detection metadata (enhanced for mobile apps)
    */
   private validateObjectDetection(action: RecycleAction): {
     valid: boolean;
     reason?: string;
+    details?: {
+      confidence?: number;
+      boundingBoxArea?: number;
+      frameCount?: number;
+      motionScore?: number;
+      issues?: string[];
+    };
+    suggestions?: string[];
   } {
+    const issues: string[] = [];
+    const suggestions: string[] = [];
+
+    // Check confidence
     if (action.confidence < this.MIN_CONFIDENCE) {
-      return {
-        valid: false,
-        reason: `Confidence ${action.confidence} below minimum ${this.MIN_CONFIDENCE}`,
-      };
+      issues.push(`Confidence ${(action.confidence * 100).toFixed(1)}% is below required ${(this.MIN_CONFIDENCE * 100).toFixed(0)}%`);
+      suggestions.push(ValidationHints.CONFIDENCE_TOO_LOW);
     }
 
+    // Check bounding box area
     if (action.boundingBoxAreaRatio < this.MIN_BOUNDING_BOX_AREA) {
-      return {
-        valid: false,
-        reason: `Bounding box area ratio ${action.boundingBoxAreaRatio} below minimum ${this.MIN_BOUNDING_BOX_AREA}`,
-      };
+      issues.push(`Object size ${(action.boundingBoxAreaRatio * 100).toFixed(1)}% is below required ${(this.MIN_BOUNDING_BOX_AREA * 100).toFixed(0)}%`);
+      suggestions.push(ValidationHints.BOUNDING_BOX_TOO_SMALL);
     }
 
+    // Check frame count
     if (action.frameCountDetected < this.MIN_FRAME_COUNT) {
-      return {
-        valid: false,
-        reason: `Frame count ${action.frameCountDetected} below minimum ${this.MIN_FRAME_COUNT}`,
-      };
+      issues.push(`Only ${action.frameCountDetected} frame(s) detected, need at least ${this.MIN_FRAME_COUNT}`);
+      suggestions.push(ValidationHints.INSUFFICIENT_FRAMES);
     }
 
+    // Check motion score
     if (action.motionScore < this.MIN_MOTION_SCORE) {
+      issues.push(`Motion score ${(action.motionScore * 100).toFixed(1)}% is below required ${(this.MIN_MOTION_SCORE * 100).toFixed(0)}%`);
+      suggestions.push(ValidationHints.MOTION_TOO_LOW);
+    }
+
+    if (issues.length > 0) {
       return {
         valid: false,
-        reason: `Motion score ${action.motionScore} below minimum ${this.MIN_MOTION_SCORE}`,
+        reason: ValidationMessages.CONFIDENCE_TOO_LOW,
+        details: {
+          confidence: action.confidence,
+          boundingBoxArea: action.boundingBoxAreaRatio,
+          frameCount: action.frameCountDetected,
+          motionScore: action.motionScore,
+          issues,
+        },
+        suggestions,
       };
     }
 
-    return { valid: true };
+    return {
+      valid: true,
+      details: {
+        confidence: action.confidence,
+        boundingBoxArea: action.boundingBoxAreaRatio,
+        frameCount: action.frameCountDetected,
+        motionScore: action.motionScore,
+      },
+    };
   }
 
   /**
-   * Validate location and GPS data
+   * Validate location and GPS data (enhanced for mobile apps)
    */
   private async validateLocation(action: RecycleAction): Promise<{
     valid: boolean;
     score: number;
     reason?: string;
+    details?: {
+      distance?: number;
+      gpsAccuracy?: number;
+      issues?: string[];
+    };
+    suggestions?: string[];
   }> {
     const point = action.recyclingPoint;
 
@@ -249,7 +406,13 @@ export class VerificationService {
           return {
             valid: false,
             score: 0.0,
-            reason: `Impossible speed: ${speed.toFixed(2)} m/s (max: ${this.MAX_SPEED} m/s)`,
+            reason: ValidationMessages.IMPOSSIBLE_SPEED,
+            details: {
+              distance,
+              gpsAccuracy: action.gpsAccuracy,
+              issues: [`Impossible speed detected: ${speed.toFixed(2)} m/s (max: ${this.MAX_SPEED} m/s)`],
+            },
+            suggestions: ['Please ensure GPS is accurate and you are at the correct location'],
           };
         }
 
@@ -258,7 +421,13 @@ export class VerificationService {
           return {
             valid: false,
             score: 0.0,
-            reason: `Impossible location jump: ${lastDistance.toFixed(2)}m in ${timeDiff.toFixed(2)}s`,
+            reason: ValidationMessages.IMPOSSIBLE_JUMP,
+            details: {
+              distance,
+              gpsAccuracy: action.gpsAccuracy,
+              issues: [`Impossible location jump: ${lastDistance.toFixed(1)}m in ${timeDiff.toFixed(1)}s`],
+            },
+            suggestions: ['Please ensure you are at the correct location and GPS is accurate'],
           };
         }
       }
@@ -281,16 +450,28 @@ export class VerificationService {
     const distanceScore = 1 - Math.min(distance / point.radius, 1);
     const locationScore = (accuracyScore + distanceScore) / 2;
 
-    return { valid: true, score: locationScore };
+    return {
+      valid: true,
+      score: locationScore,
+      details: {
+        distance,
+        gpsAccuracy: action.gpsAccuracy,
+      },
+    };
   }
 
   /**
-   * Check image uniqueness (hash and perceptual hash)
+   * Check image uniqueness (hash and perceptual hash) - enhanced for mobile
    */
   private async checkImageUniqueness(action: RecycleAction): Promise<{
     valid: boolean;
     score: number;
     reason?: string;
+    details?: {
+      hammingDistance?: number;
+      issues?: string[];
+    };
+    suggestions?: string[];
   }> {
     // Check SHA-256 hash uniqueness
     const existingByHash = await this.recycleActionRepo.findOne({
@@ -301,7 +482,11 @@ export class VerificationService {
       return {
         valid: false,
         score: 0.0,
-        reason: 'Duplicate image hash detected',
+        reason: ValidationMessages.DUPLICATE_IMAGE,
+        details: {
+          issues: ['This exact image has already been submitted'],
+        },
+        suggestions: ['Please capture a new, different image'],
       };
     }
 
@@ -330,7 +515,12 @@ export class VerificationService {
         return {
           valid: false,
           score: 0.0,
-          reason: `Image too similar to previous submission (Hamming distance: ${hammingDistance})`,
+          reason: ValidationMessages.IMAGE_TOO_SIMILAR,
+          details: {
+            hammingDistance,
+            issues: [`Image is too similar to a previous submission (similarity: ${hammingDistance}/64)`],
+          },
+          suggestions: ['Please capture a new, different image from a different angle'],
         };
       }
     }
@@ -338,48 +528,79 @@ export class VerificationService {
     // Calculate uniqueness score
     const uniquenessScore = minHammingDistance > 10 ? 1.0 : minHammingDistance / 10;
 
-    return { valid: true, score: uniquenessScore };
+    return {
+      valid: true,
+      score: uniquenessScore,
+      details: {
+        hammingDistance: minHammingDistance,
+      },
+    };
   }
 
   /**
-   * Validate frame sequence
+   * Validate frame sequence (enhanced for mobile)
    */
   private validateFrameSequence(action: RecycleAction): {
     valid: boolean;
     score: number;
     reason?: string;
+    details?: {
+      windowMs?: number;
+      maxGapMs?: number;
+      issues?: string[];
+    };
+    suggestions?: string[];
   } {
     if (!action.frameMetadata || action.frameMetadata.length < 4) {
       return {
         valid: false,
         score: 0.0,
         reason: 'Insufficient frame metadata',
+        details: {
+          issues: ['Not enough frame data provided'],
+        },
+        suggestions: ['Please ensure all frames are captured and sent'],
       };
     }
 
     const frames = action.frameMetadata.sort((a, b) => a.timestamp - b.timestamp);
     const firstTimestamp = frames[0].timestamp;
     const lastTimestamp = frames[frames.length - 1].timestamp;
+    const windowMs = lastTimestamp - firstTimestamp;
+    let maxGapMs = 0;
+
+    const issues: string[] = [];
+    const suggestions: string[] = [];
 
     // Check frame window (must be within 2 seconds)
-    if (lastTimestamp - firstTimestamp > this.FRAME_WINDOW_MS) {
-      return {
-        valid: false,
-        score: 0.0,
-        reason: `Frame window ${lastTimestamp - firstTimestamp}ms exceeds maximum ${this.FRAME_WINDOW_MS}ms`,
-      };
+    if (windowMs > this.FRAME_WINDOW_MS) {
+      issues.push(`Frames captured over ${(windowMs / 1000).toFixed(1)}s, must be within ${(this.FRAME_WINDOW_MS / 1000).toFixed(1)}s`);
+      suggestions.push('Try: Capture all frames quickly within 2 seconds');
     }
 
     // Check frame gaps
     for (let i = 1; i < frames.length; i++) {
       const gap = frames[i].timestamp - frames[i - 1].timestamp;
+      if (gap > maxGapMs) maxGapMs = gap;
+      
       if (gap > this.MAX_FRAME_GAP_MS) {
-        return {
-          valid: false,
-          score: 0.0,
-          reason: `Frame gap ${gap}ms exceeds maximum ${this.MAX_FRAME_GAP_MS}ms`,
-        };
+        issues.push(`Gap of ${gap}ms between frames exceeds maximum ${this.MAX_FRAME_GAP_MS}ms`);
+        suggestions.push('Try: Capture frames continuously without pauses');
       }
+    }
+
+    if (issues.length > 0) {
+      return {
+        valid: false,
+        score: 0.0,
+        reason: issues[0],
+        details: {
+          windowMs,
+          maxGapMs,
+          issues,
+        },
+        suggestions,
+      };
     }
 
     // Check bounding box consistency
@@ -394,7 +615,13 @@ export class VerificationService {
       return {
         valid: false,
         score: 0.0,
-        reason: `Bounding box inconsistency (std dev: x=${xStdDev.toFixed(2)}, y=${yStdDev.toFixed(2)})`,
+        reason: ValidationMessages.BOUNDING_BOX_INCONSISTENT,
+        details: {
+          windowMs,
+          maxGapMs,
+          issues: [`Object position changed too much between frames (x: ${xStdDev.toFixed(2)}, y: ${yStdDev.toFixed(2)})`],
+        },
+        suggestions: ['Try: Keep camera steady and object in same position'],
       };
     }
 
@@ -403,7 +630,14 @@ export class VerificationService {
     const confidenceStdDev = this.calculateStdDev(confidences);
     const consistencyScore = 1 - Math.min(confidenceStdDev / 0.2, 1.0);
 
-    return { valid: true, score: consistencyScore };
+    return {
+      valid: true,
+      score: consistencyScore,
+      details: {
+        windowMs,
+        maxGapMs,
+      },
+    };
   }
 
   /**

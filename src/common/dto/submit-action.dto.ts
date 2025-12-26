@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsString, IsArray, IsObject, Min, Max, ValidateNested } from 'class-validator';
+import { IsEnum, IsNumber, IsString, IsArray, IsObject, Min, Max, ValidateNested, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MaterialType } from '../../entities/recycling-point.entity';
 
@@ -54,17 +54,17 @@ export class SubmitActionDto {
   confidence: number;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.25, { message: 'Bounding box area must be at least 0.25 (25% of image). Please move closer to the object.' })
   @Max(1)
   boundingBoxAreaRatio: number;
 
   @IsNumber()
-  @Min(1)
+  @Min(4, { message: 'At least 4 frames must be detected. Please keep the camera steady and ensure the object is visible.' })
   @Max(5)
   frameCountDetected: number;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.3, { message: 'Motion score must be at least 0.3. Please move the camera slightly while capturing.' })
   @Max(1)
   motionScore: number;
 
