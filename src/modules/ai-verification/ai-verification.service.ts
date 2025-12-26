@@ -250,6 +250,120 @@ export class AIVerificationService {
   }
 
   /**
+   * Call Roboflow Trash Detection API (BEST for recycling - trained model)
+   */
+  private async callRoboflow(imageBase64: string, claimedObjectType: MaterialType): Promise<string> {
+    try {
+      const url = `${this.roboflowBaseUrl}/${this.roboflowModelId}/${this.roboflowVersion}`;
+      
+      const response = await axios.post(
+        url,
+        imageBase64,
+        {
+          params: {
+            api_key: this.roboflowApiKey,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          timeout: this.timeout,
+        },
+      );
+
+      // Parse Roboflow response
+      const roboflowData = response.data;
+      
+      // Roboflow returns predictions with classes and confidence
+      // Format: { predictions: [{ class: string, confidence: number, ... }] }
+      const predictions = roboflowData.predictions || [];
+      
+      if (predictions.length === 0) {
+        return JSON.stringify({
+          object_type: 'unknown',
+          confidence: 0.0,
+          authentic: false,
+          quality: 'poor',
+          reasoning: 'No objects detected in image',
+        });
+      }
+
+      // Get best prediction
+      const bestPrediction = predictions.sort((a: any, b: any) => b.confidence - a.confidence)[0];
+      
+      // Map Roboflow classes to our material types
+      const detectedType = this.mapRoboflowClassToMaterial(bestPrediction.class);
+      const confidence = bestPrediction.confidence || 0.0;
+      
+      // Determine authenticity (high confidence = authentic)
+      const authentic = confidence >= 0.7;
+      
+      // Quality assessment based on confidence
+      let quality = 'fair';
+      if (confidence >= 0.9) quality = 'good';
+      else if (confidence < 0.5) quality = 'poor';
+
+      return JSON.stringify({
+        object_type: detectedType,
+        confidence: confidence,
+        authentic: authentic,
+        quality: quality,
+        reasoning: `Roboflow detected: ${bestPrediction.class} with ${(confidence * 100).toFixed(1)}% confidence. ${predictions.length} object(s) found.`,
+      });
+    } catch (error) {
+      if (error.response?.status === 429) {
+        throw new HttpException(
+          'Roboflow API rate limit exceeded. Please try again later.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      if (error.response?.status === 401) {
+        throw new HttpException(
+          'Roboflow API key is invalid.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+      throw new HttpException(
+        `Roboflow API error: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Map Roboflow trash detection classes to our material types
+   */
+  private mapRoboflowClassToMaterial(roboflowClass: string): string {
+    const classLower = roboflowClass.toLowerCase();
+    
+    // Map common trash detection classes to our materials
+    if (classLower.includes('bottle') || classLower.includes('plastic')) {
+      if (classLower.includes('glass')) {
+        return 'glass_bottle';
+      }
+      return 'plastic_bottle';
+    }
+    
+    if (classLower.includes('can') || classLower.includes('aluminum') || classLower.includes('metal')) {
+      return 'aluminum_can';
+    }
+    
+    if (classLower.includes('glass') || classLower.includes('bottle')) {
+      return 'glass_bottle';
+    }
+    
+    if (classLower.includes('paper') || classLower.includes('newspaper')) {
+      return 'paper';
+    }
+    
+    if (classLower.includes('cardboard') || classLower.includes('box')) {
+      return 'cardboard';
+    }
+    
+    // Default fallback
+    return 'plastic_bottle';
+  }
+
+  /**
    * Call Google Gemini Vision API (BEST accuracy, free tier)
    */
   private async callGemini(imageBase64: string, claimedObjectType: MaterialType): Promise<string> {
