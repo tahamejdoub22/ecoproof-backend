@@ -3,16 +3,21 @@ import {
   Post,
   Get,
   Body,
+  Query,
   UseGuards,
   Request,
   UseInterceptors,
   UploadedFile,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RecycleActionsService } from './recycle-actions.service';
 import { SubmitActionDto } from '../../common/dto/submit-action.dto';
+import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
+import { SubmitActionResponseDto } from '../../common/dto/submit-action-response.dto';
+import { ApiStandardResponse, ApiErrorResponse } from '../../common/decorators/api-response.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../../entities/user.entity';
 
@@ -24,13 +29,26 @@ export class RecycleActionsController {
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(FileInterceptor('image'))
+  @ApiStandardResponse(SubmitActionResponseDto, {
+    status: 202,
+    description: 'Recycling action submitted successfully. Processing asynchronously.',
+    example: {
+      verified: false,
+      actionId: '550e8400-e29b-41d4-a716-446655440000',
+      status: 'PENDING',
+      reason: 'Processing...',
+    },
+  })
+  @ApiErrorResponse(400, 'Validation failed')
+  @ApiErrorResponse(401, 'Unauthorized')
+  @ApiErrorResponse(429, 'Rate limit exceeded')
   async submit(
     @Request() req: { user: User },
     @Body() dto: SubmitActionDto,
     @UploadedFile() file: Express.Multer.File,
-  ) {
+  ): Promise<SubmitActionResponseDto> {
     if (!file) {
-      throw new Error('Image file is required');
+      throw new BadRequestException('Image file is required');
     }
 
     const ipAddress = req.headers['x-forwarded-for'] as string;
@@ -46,7 +64,10 @@ export class RecycleActionsController {
   }
 
   @Get('my-actions')
-  async getMyActions(@Request() req: { user: User }) {
-    return this.actionsService.getUserActions(req.user.id);
+  async getMyActions(
+    @Request() req: { user: User },
+    @Query() pagination: PaginationDto,
+  ): Promise<PaginatedResponse<any>> {
+    return this.actionsService.getUserActions(req.user.id, pagination);
   }
 }

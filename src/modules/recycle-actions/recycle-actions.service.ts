@@ -11,6 +11,7 @@ import { RewardsService } from '../rewards/rewards.service';
 import { FraudService } from '../fraud/fraud.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../../entities/audit-log.entity';
+import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface SubmitActionDto {
@@ -88,6 +89,9 @@ export class RecycleActionsService {
           verified: existing.status === ActionStatus.VERIFIED,
           points: existing.pointsAwarded || undefined,
           reason: existing.status === ActionStatus.REJECTED ? 'Action rejected' : undefined,
+          actionId: existing.id,
+          status: existing.status,
+          verificationScore: existing.verificationScore || undefined,
         };
       }
 
@@ -163,6 +167,8 @@ export class RecycleActionsService {
       return {
         verified: false, // Will be updated after verification
         reason: 'Verification in progress',
+        actionId: action.id,
+        status: ActionStatus.PENDING,
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -229,14 +235,33 @@ export class RecycleActionsService {
   }
 
   /**
-   * Get user's actions
+   * Get user's actions with pagination
    */
-  async getUserActions(userId: string, limit: number = 50): Promise<RecycleAction[]> {
-    return this.actionRepo.find({
+  async getUserActions(
+    userId: string,
+    pagination: PaginationDto,
+  ): Promise<PaginatedResponse<RecycleAction>> {
+    const [data, total] = await this.actionRepo.findAndCount({
       where: { userId },
       relations: ['recyclingPoint', 'reward'],
       order: { createdAt: 'DESC' },
-      take: limit,
+      skip: pagination.skip,
+      take: pagination.take,
     });
+
+    const totalPages = Math.ceil(total / pagination.take);
+    const page = pagination.page || 1;
+
+    return {
+      data,
+      meta: {
+        page,
+        limit: pagination.take,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 }

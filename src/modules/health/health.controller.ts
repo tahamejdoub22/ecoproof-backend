@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header } from '@nestjs/common';
 import { AIVerificationService } from '../ai-verification/ai-verification.service';
 import { DataSource } from 'typeorm';
 
@@ -10,6 +10,7 @@ export class HealthController {
   ) {}
 
   @Get()
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
   async health() {
     const dbHealthy = await this.checkDatabase();
     const aiHealth = await this.aiVerificationService.healthCheck();
