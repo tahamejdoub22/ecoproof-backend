@@ -284,7 +284,7 @@ export class AIVerificationService {
         confidence: confidence,
         authentic: authentic,
         quality: quality,
-        reasoning: `Roboflow detected: ${bestPrediction.class} (mapped to ${detectedType}) with ${(confidence * 100).toFixed(1)}% confidence. ${predictions.length} object(s) found.`,
+        reasoning: `Roboflow detected: ${bestPrediction.class} with ${(confidence * 100).toFixed(1)}% confidence. ${predictions.length} object(s) found.`,
       });
     } catch (error) {
       if (error.response?.status === 429) {
@@ -309,26 +309,27 @@ export class AIVerificationService {
   /**
    * Map Roboflow trash detection classes to our material types
    * Roboflow model classes: cardboard, glass, metal, paper, plastic, trash
+   * Material types now match Roboflow classes exactly (no mapping needed)
    */
   private mapRoboflowClassToMaterial(roboflowClass: string): string {
     const classLower = roboflowClass.toLowerCase().trim();
     
-    // Direct mapping from Roboflow classes to our material types
+    // Direct mapping - material types now match Roboflow classes exactly
     switch (classLower) {
       case 'cardboard':
         return 'cardboard';
       
       case 'glass':
-        return 'glass_bottle';
+        return 'glass';
       
       case 'metal':
-        return 'aluminum_can';
+        return 'metal';
       
       case 'paper':
         return 'paper';
       
       case 'plastic':
-        return 'plastic_bottle';
+        return 'plastic';
       
       case 'trash':
         // Trash is generic - reject (return unknown to trigger rejection)
@@ -340,16 +341,16 @@ export class AIVerificationService {
           return 'cardboard';
         }
         if (classLower.includes('glass')) {
-          return 'glass_bottle';
+          return 'glass';
         }
         if (classLower.includes('metal') || classLower.includes('can') || classLower.includes('aluminum')) {
-          return 'aluminum_can';
+          return 'metal';
         }
         if (classLower.includes('paper')) {
           return 'paper';
         }
         if (classLower.includes('plastic') || classLower.includes('bottle')) {
-          return 'plastic_bottle';
+          return 'plastic';
         }
         
         // Unknown class - reject
@@ -432,7 +433,7 @@ export class AIVerificationService {
     return `You are an expert recycling verification system. Analyze this image carefully.
 
 Task:
-1. Identify the object type. It must be one of: plastic_bottle, aluminum_can, glass_bottle, paper, cardboard
+1. Identify the object type. It must be one of: cardboard, glass, metal, paper, plastic
 2. Rate your confidence (0.0 to 1.0)
 3. Determine if the image is authentic (not edited, not a screenshot, not AI-generated, not a stock photo)
 4. Assess image quality (good/fair/poor)
@@ -441,15 +442,15 @@ The user claims this is: ${claimedObjectType}
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "object_type": "plastic_bottle",
+  "object_type": "plastic",
   "confidence": 0.92,
   "authentic": true,
   "quality": "good",
-  "reasoning": "I can clearly see a plastic bottle in the image. The image appears to be a real photo taken with a camera, not edited or manipulated. The object is clearly visible and in good quality."
+  "reasoning": "I can clearly see a plastic item in the image. The image appears to be a real photo taken with a camera, not edited or manipulated. The object is clearly visible and in good quality."
 }
 
 Important:
-- object_type must match one of: plastic_bottle, aluminum_can, glass_bottle, paper, cardboard
+- object_type must match one of: cardboard, glass, metal, paper, plastic
 - confidence must be between 0.0 and 1.0
 - authentic must be true or false
 - quality must be: good, fair, or poor
@@ -480,8 +481,8 @@ Important:
         throw new Error('Invalid AI response structure');
       }
 
-      // Validate object type
-      const validTypes = ['plastic_bottle', 'aluminum_can', 'glass_bottle', 'paper', 'cardboard'];
+      // Validate object type (must match Roboflow classes)
+      const validTypes = ['cardboard', 'glass', 'metal', 'paper', 'plastic'];
       if (!validTypes.includes(parsed.object_type)) {
         throw new Error(`Invalid object type: ${parsed.object_type}`);
       }

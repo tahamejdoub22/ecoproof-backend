@@ -10,11 +10,12 @@ import {
 import { RecycleAction } from './recycle-action.entity';
 
 export enum MaterialType {
-  PLASTIC_BOTTLE = 'plastic_bottle',
-  ALUMINUM_CAN = 'aluminum_can',
-  GLASS_BOTTLE = 'glass_bottle',
-  PAPER = 'paper',
+  // Match Roboflow model classes exactly
   CARDBOARD = 'cardboard',
+  GLASS = 'glass',
+  METAL = 'metal',
+  PAPER = 'paper',
+  PLASTIC = 'plastic',
 }
 
 @Entity('recycling_points')

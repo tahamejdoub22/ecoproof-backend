@@ -11,13 +11,13 @@ import { TrustService } from '../trust/trust.service';
 export class RewardsService {
   private readonly logger = new Logger(RewardsService.name);
 
-  // Base points per material
+  // Base points per material (matching Roboflow classes)
   private readonly BASE_POINTS: Record<MaterialType, number> = {
-    [MaterialType.PLASTIC_BOTTLE]: 5,
-    [MaterialType.ALUMINUM_CAN]: 7,
-    [MaterialType.GLASS_BOTTLE]: 10,
-    [MaterialType.PAPER]: 3,
     [MaterialType.CARDBOARD]: 4,
+    [MaterialType.GLASS]: 10,
+    [MaterialType.METAL]: 7,
+    [MaterialType.PAPER]: 3,
+    [MaterialType.PLASTIC]: 5,
   };
 
   // Limits
