@@ -23,7 +23,8 @@ export interface AIVerificationResponse {
 }
 
 export enum AIProvider {
-  GEMINI = 'gemini', // Google Gemini Vision (BEST - Free tier: 60 req/min)
+  ROBOFLOW = 'roboflow', // Roboflow Trash Detection (BEST for recycling - trained model)
+  GEMINI = 'gemini', // Google Gemini Vision (Free tier: 60 req/min)
   OLLAMA = 'ollama', // Local Ollama (Fallback)
   HUGGINGFACE = 'huggingface', // Hugging Face Inference (Alternative)
 }
@@ -45,6 +46,12 @@ export class AIVerificationService {
   private readonly huggingfaceApiKey: string | null;
   private readonly huggingfaceModel: string;
   
+  // Roboflow Configuration (Trash Detection - BEST for recycling)
+  private readonly roboflowApiKey: string | null;
+  private readonly roboflowModelId: string;
+  private readonly roboflowVersion: number;
+  private readonly roboflowBaseUrl = 'https://serverless.roboflow.com';
+  
   // General Configuration
   private readonly timeout: number;
   private readonly enabled: boolean;
@@ -64,20 +71,28 @@ export class AIVerificationService {
     this.huggingfaceApiKey = this.configService.get('HUGGINGFACE_API_KEY') || null;
     this.huggingfaceModel = this.configService.get('HUGGINGFACE_MODEL') || 'Salesforce/blip2-opt-2.7b';
     
+    // Roboflow (Trash Detection - BEST for recycling)
+    this.roboflowApiKey = this.configService.get('ROBOFLOW_API_KEY') || null;
+    this.roboflowModelId = this.configService.get('ROBOFLOW_MODEL_ID') || 'trashnet-a-set-of-annotated-images-of-trash-that-can-be-used-for-object-detection-lxfrw';
+    this.roboflowVersion = parseInt(this.configService.get('ROBOFLOW_VERSION') || '2', 10);
+    
     // General
     this.timeout = this.configService.get('AI_VERIFICATION_TIMEOUT') || 30000;
     this.enabled = this.configService.get('AI_VERIFICATION_ENABLED') !== 'false';
     
-    // Provider priority: Gemini > Ollama > HuggingFace
-    const providerStr = this.configService.get('AI_PROVIDER') || 'gemini';
-    this.preferredProvider = AIProvider[providerStr.toUpperCase()] || AIProvider.GEMINI;
+    // Provider priority: Roboflow > Gemini > Ollama > HuggingFace
+    const providerStr = this.configService.get('AI_PROVIDER') || 'roboflow';
+    this.preferredProvider = AIProvider[providerStr.toUpperCase()] || AIProvider.ROBOFLOW;
     
     // Setup fallback chain
-    this.fallbackProviders = [AIProvider.OLLAMA, AIProvider.HUGGINGFACE];
+    this.fallbackProviders = [AIProvider.GEMINI, AIProvider.OLLAMA, AIProvider.HUGGINGFACE];
     
     this.logger.log(`AI Verification enabled: ${this.preferredProvider} (primary)`);
+    if (this.roboflowApiKey) {
+      this.logger.log('✅ Roboflow Trash Detection configured (BEST for recycling)');
+    }
     if (this.geminiApiKey) {
-      this.logger.log('✅ Google Gemini API configured (BEST accuracy)');
+      this.logger.log('✅ Google Gemini API configured (high accuracy)');
     }
     if (this.ollamaBaseUrl) {
       this.logger.log('✅ Ollama configured (fallback)');
@@ -144,6 +159,14 @@ export class AIVerificationService {
       let usedProvider: string;
 
       switch (provider) {
+        case AIProvider.ROBOFLOW:
+          if (!this.roboflowApiKey) {
+            throw new Error('Roboflow API key not configured');
+          }
+          aiResponse = await this.callRoboflow(imageBase64, claimedObjectType);
+          usedProvider = 'roboflow';
+          break;
+
         case AIProvider.GEMINI:
           if (!this.geminiApiKey) {
             throw new Error('Gemini API key not configured');
@@ -545,6 +568,31 @@ Important:
     }
 
     const checks: { provider: string; healthy: boolean; error?: string }[] = [];
+
+    // Check Roboflow
+    if (this.roboflowApiKey) {
+      try {
+        // Simple health check - try a minimal request
+        const response = await axios.get(
+          `${this.roboflowBaseUrl}/${this.roboflowModelId}/${this.roboflowVersion}`,
+          {
+            params: { api_key: this.roboflowApiKey },
+            timeout: 5000,
+            validateStatus: () => true, // Accept any status for health check
+          },
+        );
+        checks.push({
+          provider: 'roboflow',
+          healthy: response.status < 500, // Not a server error
+        });
+      } catch (error) {
+        checks.push({
+          provider: 'roboflow',
+          healthy: false,
+          error: error.message,
+        });
+      }
+    }
 
     // Check Gemini
     if (this.geminiApiKey) {
