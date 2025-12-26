@@ -189,13 +189,13 @@ class ObjectDetectionService {
   Interpreter? _interpreter;
   List<String>? _labels;
   
-  // Allowed classes
+  // Allowed classes (must match Roboflow model classes exactly)
   static const Map<String, int> classMap = {
-    'plastic_bottle': 0,
-    'aluminum_can': 1,
-    'glass_bottle': 2,
+    'cardboard': 0,
+    'glass': 1,
+    'metal': 2,
     'paper': 3,
-    'cardboard': 4,
+    'plastic': 4,
   };
   
   Future<void> loadModel() async {
@@ -699,6 +699,7 @@ tflite_model = converter.convert()
 
 - [ ] Model trained and converted to TFLite
 - [ ] Model integrated in mobile app
+- [ ] **Material types match Roboflow classes exactly: cardboard, glass, metal, paper, plastic**
 - [ ] Multi-frame capture implemented (5 frames)
 - [ ] Motion detection working
 - [ ] Image hashing (SHA-256 + pHash) implemented
@@ -708,6 +709,20 @@ tflite_model = converter.convert()
 - [ ] Error handling for edge cases
 - [ ] Performance optimization (model quantization)
 - [ ] Testing on real devices
+
+## 📋 MATERIAL TYPE REFERENCE
+
+**Backend expects these exact class names (matching Roboflow model):**
+- `cardboard` - Cardboard boxes, packaging
+- `glass` - Glass bottles, containers
+- `metal` - Metal cans, aluminum, steel
+- `paper` - Paper, newspapers, documents
+- `plastic` - Plastic bottles, containers
+
+**Important:** 
+- Use these exact strings (lowercase)
+- Do NOT use: `plastic_bottle`, `aluminum_can`, `glass_bottle`
+- Backend will reject if class name doesn't match exactly
 
 ---
 
