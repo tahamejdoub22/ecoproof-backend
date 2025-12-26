@@ -331,8 +331,8 @@ export class AIVerificationService {
         return 'plastic_bottle';
       
       case 'trash':
-        // Trash is generic - reject or map to most common
-        return 'plastic_bottle'; // Default fallback for generic trash
+        // Trash is generic - reject (return unknown to trigger rejection)
+        return 'unknown';
       
       default:
         // Fallback: try to match by substring
