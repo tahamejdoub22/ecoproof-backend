@@ -179,7 +179,7 @@ recycle_actions
 ├── id (UUID, PK)
 ├── user_id (UUID, FK → users, indexed)
 ├── recycling_point_id (UUID, FK → recycling_points, indexed)
-├── object_type (enum, indexed)
+├── object_type (enum: cardboard, glass, metal, paper, plastic - matches Roboflow, indexed)
 ├── confidence (decimal)
 ├── image_hash (string, unique, indexed)
 ├── perceptual_hash (string, indexed)

@@ -254,7 +254,7 @@
 **Mobile sends:**
 ```typescript
 {
-  object_type: 'plastic_bottle' | 'aluminum_can' | 'glass_bottle' | 'paper' | 'cardboard',
+  object_type: 'cardboard' | 'glass' | 'metal' | 'paper' | 'plastic', // Must match Roboflow classes exactly
   confidence: number, // 0-1
   bounding_box_area_ratio: number, // 0-1
   frame_count_detected: number, // 1-5

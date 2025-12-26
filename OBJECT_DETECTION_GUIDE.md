@@ -76,7 +76,7 @@ This guide provides **complete, free, production-ready** tools and implementatio
 #### Option B: Custom Fine-tuned Model (BEST)
 - **Base:** MobileNet V2 or EfficientNet-Lite
 - **Fine-tune on:** Custom recycling dataset
-- **Classes:** plastic_bottle, aluminum_can, glass_bottle, paper, cardboard
+- **Classes:** cardboard, glass, metal, paper, plastic (matches Roboflow model)
 - **Size:** ~8-12 MB
 - **Accuracy:** Highest (trained on recycling-specific data)
 
@@ -329,15 +329,19 @@ class ObjectDetectionService {
   }
   
   String? _mapClass(String className) {
-    // Map model classes to our classes
-    if (className.toLowerCase().contains('bottle')) {
-      return 'plastic_bottle'; // Or detect glass vs plastic
-    } else if (className.toLowerCase().contains('can')) {
-      return 'aluminum_can';
-    } else if (className.toLowerCase().contains('paper')) {
-      return 'paper';
-    } else if (className.toLowerCase().contains('cardboard')) {
+    // Map model classes to our classes (must match Roboflow: cardboard, glass, metal, paper, plastic)
+    final classLower = className.toLowerCase();
+    
+    if (classLower.contains('cardboard') || classLower.contains('box')) {
       return 'cardboard';
+    } else if (classLower.contains('glass')) {
+      return 'glass';
+    } else if (classLower.contains('metal') || classLower.contains('can') || classLower.contains('aluminum')) {
+      return 'metal';
+    } else if (classLower.contains('paper')) {
+      return 'paper';
+    } else if (classLower.contains('plastic') || classLower.contains('bottle')) {
+      return 'plastic';
     }
     return null;
   }
