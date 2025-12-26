@@ -24,9 +24,7 @@ export interface AIVerificationResponse {
 
 export enum AIProvider {
   ROBOFLOW = 'roboflow', // Roboflow Trash Detection (BEST for recycling - trained model)
-  GEMINI = 'gemini', // Google Gemini Vision (Free tier: 60 req/min)
-  OLLAMA = 'ollama', // Local Ollama (Fallback)
-  HUGGINGFACE = 'huggingface', // Hugging Face Inference (Alternative)
+  GEMINI = 'gemini', // Google Gemini Vision (Fallback - Free tier: 60 req/min)
 }
 
 @Injectable()
@@ -37,14 +35,6 @@ export class AIVerificationService {
   private readonly geminiApiKey: string | null;
   private readonly geminiModel: string;
   private readonly geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-  
-  // Ollama Configuration
-  private readonly ollamaBaseUrl: string;
-  private readonly ollamaModel: string;
-  
-  // Hugging Face Configuration
-  private readonly huggingfaceApiKey: string | null;
-  private readonly huggingfaceModel: string;
   
   // Roboflow Configuration (Trash Detection - BEST for recycling)
   private readonly roboflowApiKey: string | null;
@@ -59,43 +49,32 @@ export class AIVerificationService {
   private readonly fallbackProviders: AIProvider[];
 
   constructor(private configService: ConfigService) {
-    // Gemini (Primary - Best accuracy)
-    this.geminiApiKey = this.configService.get('GEMINI_API_KEY') || null;
-    this.geminiModel = this.configService.get('GEMINI_MODEL') || 'gemini-1.5-flash';
-    
-    // Ollama (Fallback)
-    this.ollamaBaseUrl = this.configService.get('OLLAMA_BASE_URL') || 'http://localhost:11434';
-    this.ollamaModel = this.configService.get('OLLAMA_MODEL') || 'llava:13b';
-    
-    // Hugging Face (Alternative)
-    this.huggingfaceApiKey = this.configService.get('HUGGINGFACE_API_KEY') || null;
-    this.huggingfaceModel = this.configService.get('HUGGINGFACE_MODEL') || 'Salesforce/blip2-opt-2.7b';
-    
     // Roboflow (Trash Detection - BEST for recycling)
     this.roboflowApiKey = this.configService.get('ROBOFLOW_API_KEY') || null;
     this.roboflowModelId = this.configService.get('ROBOFLOW_MODEL_ID') || 'trashnet-a-set-of-annotated-images-of-trash-that-can-be-used-for-object-detection-lxfrw';
     this.roboflowVersion = parseInt(this.configService.get('ROBOFLOW_VERSION') || '2', 10);
     
+    // Gemini (Fallback)
+    this.geminiApiKey = this.configService.get('GEMINI_API_KEY') || null;
+    this.geminiModel = this.configService.get('GEMINI_MODEL') || 'gemini-1.5-flash';
+    
     // General
     this.timeout = this.configService.get('AI_VERIFICATION_TIMEOUT') || 30000;
     this.enabled = this.configService.get('AI_VERIFICATION_ENABLED') !== 'false';
     
-    // Provider priority: Roboflow > Gemini > Ollama > HuggingFace
+    // Provider priority: Roboflow > Gemini
     const providerStr = this.configService.get('AI_PROVIDER') || 'roboflow';
     this.preferredProvider = AIProvider[providerStr.toUpperCase()] || AIProvider.ROBOFLOW;
     
     // Setup fallback chain
-    this.fallbackProviders = [AIProvider.GEMINI, AIProvider.OLLAMA, AIProvider.HUGGINGFACE];
+    this.fallbackProviders = [AIProvider.GEMINI];
     
     this.logger.log(`AI Verification enabled: ${this.preferredProvider} (primary)`);
     if (this.roboflowApiKey) {
       this.logger.log('✅ Roboflow Trash Detection configured (BEST for recycling)');
     }
     if (this.geminiApiKey) {
-      this.logger.log('✅ Google Gemini API configured (high accuracy)');
-    }
-    if (this.ollamaBaseUrl) {
-      this.logger.log('✅ Ollama configured (fallback)');
+      this.logger.log('✅ Google Gemini API configured (fallback)');
     }
   }
 
@@ -173,19 +152,6 @@ export class AIVerificationService {
           }
           aiResponse = await this.callGemini(imageBase64, claimedObjectType);
           usedProvider = 'gemini';
-          break;
-
-        case AIProvider.OLLAMA:
-          aiResponse = await this.callOllama(imageBase64, claimedObjectType);
-          usedProvider = 'ollama';
-          break;
-
-        case AIProvider.HUGGINGFACE:
-          if (!this.huggingfaceApiKey) {
-            throw new Error('Hugging Face API key not configured');
-          }
-          aiResponse = await this.callHuggingFace(imageBase64, claimedObjectType);
-          usedProvider = 'huggingface';
           break;
 
         default:
@@ -294,6 +260,17 @@ export class AIVerificationService {
       const detectedType = this.mapRoboflowClassToMaterial(bestPrediction.class);
       const confidence = bestPrediction.confidence || 0.0;
       
+      // Reject if class is "trash" (too generic) or "unknown"
+      if (detectedType === 'unknown' || bestPrediction.class.toLowerCase() === 'trash') {
+        return JSON.stringify({
+          object_type: 'unknown',
+          confidence: 0.0,
+          authentic: false,
+          quality: 'poor',
+          reasoning: `Roboflow detected generic "trash" class. Cannot verify specific material type.`,
+        });
+      }
+      
       // Determine authenticity (high confidence = authentic)
       const authentic = confidence >= 0.7;
       
@@ -307,7 +284,7 @@ export class AIVerificationService {
         confidence: confidence,
         authentic: authentic,
         quality: quality,
-        reasoning: `Roboflow detected: ${bestPrediction.class} with ${(confidence * 100).toFixed(1)}% confidence. ${predictions.length} object(s) found.`,
+        reasoning: `Roboflow detected: ${bestPrediction.class} (mapped to ${detectedType}) with ${(confidence * 100).toFixed(1)}% confidence. ${predictions.length} object(s) found.`,
       });
     } catch (error) {
       if (error.response?.status === 429) {
@@ -331,36 +308,53 @@ export class AIVerificationService {
 
   /**
    * Map Roboflow trash detection classes to our material types
+   * Roboflow model classes: cardboard, glass, metal, paper, plastic, trash
    */
   private mapRoboflowClassToMaterial(roboflowClass: string): string {
-    const classLower = roboflowClass.toLowerCase();
+    const classLower = roboflowClass.toLowerCase().trim();
     
-    // Map common trash detection classes to our materials
-    if (classLower.includes('bottle') || classLower.includes('plastic')) {
-      if (classLower.includes('glass')) {
+    // Direct mapping from Roboflow classes to our material types
+    switch (classLower) {
+      case 'cardboard':
+        return 'cardboard';
+      
+      case 'glass':
         return 'glass_bottle';
-      }
-      return 'plastic_bottle';
+      
+      case 'metal':
+        return 'aluminum_can';
+      
+      case 'paper':
+        return 'paper';
+      
+      case 'plastic':
+        return 'plastic_bottle';
+      
+      case 'trash':
+        // Trash is generic - reject or map to most common
+        return 'plastic_bottle'; // Default fallback for generic trash
+      
+      default:
+        // Fallback: try to match by substring
+        if (classLower.includes('cardboard') || classLower.includes('box')) {
+          return 'cardboard';
+        }
+        if (classLower.includes('glass')) {
+          return 'glass_bottle';
+        }
+        if (classLower.includes('metal') || classLower.includes('can') || classLower.includes('aluminum')) {
+          return 'aluminum_can';
+        }
+        if (classLower.includes('paper')) {
+          return 'paper';
+        }
+        if (classLower.includes('plastic') || classLower.includes('bottle')) {
+          return 'plastic_bottle';
+        }
+        
+        // Unknown class - reject
+        return 'unknown';
     }
-    
-    if (classLower.includes('can') || classLower.includes('aluminum') || classLower.includes('metal')) {
-      return 'aluminum_can';
-    }
-    
-    if (classLower.includes('glass') || classLower.includes('bottle')) {
-      return 'glass_bottle';
-    }
-    
-    if (classLower.includes('paper') || classLower.includes('newspaper')) {
-      return 'paper';
-    }
-    
-    if (classLower.includes('cardboard') || classLower.includes('box')) {
-      return 'cardboard';
-    }
-    
-    // Default fallback
-    return 'plastic_bottle';
   }
 
   /**
@@ -430,108 +424,6 @@ export class AIVerificationService {
     }
   }
 
-  /**
-   * Call Ollama API with image and prompt (Fallback)
-   */
-  private async callOllama(imageBase64: string, claimedObjectType: MaterialType): Promise<string> {
-    const prompt = this.buildPrompt(claimedObjectType);
-
-    try {
-      const response = await axios.post(
-        `${this.ollamaBaseUrl}/api/generate`,
-        {
-          model: this.ollamaModel,
-          prompt: prompt,
-          images: [imageBase64],
-          stream: false,
-          format: 'json',
-        },
-        {
-          timeout: this.timeout,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      return response.data.response || response.data;
-    } catch (error) {
-      if (error.code === 'ECONNREFUSED') {
-        throw new HttpException(
-          'Ollama service is not available. Please ensure Ollama is running.',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
-      }
-      throw new HttpException(
-        `Ollama API error: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  /**
-   * Call Hugging Face Inference API (Alternative fallback)
-   */
-  private async callHuggingFace(
-    imageBase64: string,
-    claimedObjectType: MaterialType,
-  ): Promise<string> {
-    // Hugging Face requires different approach - use image-to-text model
-    try {
-      const response = await axios.post(
-        `https://api-inference.huggingface.co/models/${this.huggingfaceModel}`,
-        {
-          inputs: {
-            image: `data:image/jpeg;base64,${imageBase64}`,
-            question: `What recycling material is in this image? Options: plastic_bottle, aluminum_can, glass_bottle, paper, cardboard. Is it authentic?`,
-          },
-        },
-        {
-          timeout: this.timeout,
-          headers: {
-            Authorization: `Bearer ${this.huggingfaceApiKey}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      // Hugging Face returns different format, need to parse
-      const answer = response.data.answer || JSON.stringify(response.data);
-      return this.formatHuggingFaceResponse(answer, claimedObjectType);
-    } catch (error) {
-      throw new HttpException(
-        `Hugging Face API error: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  /**
-   * Format Hugging Face response to match our expected format
-   */
-  private formatHuggingFaceResponse(answer: string, claimedObjectType: MaterialType): string {
-    // Try to extract object type and create JSON response
-    const objectTypes = ['plastic_bottle', 'aluminum_can', 'glass_bottle', 'paper', 'cardboard'];
-    let detectedType = claimedObjectType; // Default to claimed type
-    let confidence = 0.7; // Default confidence
-
-    // Simple parsing (can be improved)
-    for (const type of objectTypes) {
-      if (answer.toLowerCase().includes(type.replace('_', ' '))) {
-        detectedType = type;
-        confidence = 0.8;
-        break;
-      }
-    }
-
-    return JSON.stringify({
-      object_type: detectedType,
-      confidence: confidence,
-      authentic: !answer.toLowerCase().includes('fake') && !answer.toLowerCase().includes('edited'),
-      quality: answer.toLowerCase().includes('clear') ? 'good' : 'fair',
-      reasoning: answer,
-    });
-  }
 
   /**
    * Build prompt for Ollama
@@ -726,23 +618,6 @@ Important:
           error: error.message,
         });
       }
-    }
-
-    // Check Ollama
-    try {
-      const response = await axios.get(`${this.ollamaBaseUrl}/api/tags`, {
-        timeout: 5000,
-      });
-      checks.push({
-        provider: 'ollama',
-        healthy: response.status === 200,
-      });
-    } catch (error) {
-      checks.push({
-        provider: 'ollama',
-        healthy: false,
-        error: error.message,
-      });
     }
 
     return checks;
