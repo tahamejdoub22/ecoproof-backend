@@ -14,6 +14,12 @@ async function bootstrap() {
   // Request ID middleware (must be first)
   app.use(new RequestIdMiddleware().use.bind(new RequestIdMiddleware()));
 
+  // Redirect root to API docs
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/', (req, res) => {
+    res.redirect('/api/docs');
+  });
+
   // Security
   app.use(helmet({
     contentSecurityPolicy: {
@@ -108,10 +114,14 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'Ecoproof API Docs',
+      customCss: '.swagger-ui .topbar { background-color: #2E7D32; }',
       swaggerOptions: {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        filter: true,
+        displayRequestDuration: true,
       },
     });
   }
