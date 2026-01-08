@@ -1,8 +1,13 @@
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { config } from 'dotenv';
 
-config();
+// Load env vars if not already loaded (e.g. by NestJS ConfigModule)
+// We use process.env directly here because ConfigModule might not be initialized
+// when running migrations via CLI
+if (!process.env.DATABASE_URL) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config();
+}
 
 const configService = new ConfigService();
 
