@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsString, IsArray, IsObject, Min, Max, ValidateNested, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNumber, IsString, IsArray, IsObject, Min, Max, ValidateNested, IsNotEmpty, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { MaterialType } from '../../entities/recycling-point.entity';
@@ -34,14 +34,14 @@ export class FrameMetadataDto {
 export class ImageMetadataDto {
   @ApiProperty({ description: 'Image width in pixels', example: 1920, minimum: 640, maximum: 4096 })
   @IsNumber()
-  @Min(640)
-  @Max(4096)
+  @Min(640, { message: 'Image width must be at least 640px. Please use a higher resolution.' })
+  @Max(4096, { message: 'Image width cannot exceed 4096px.' })
   width: number;
 
   @ApiProperty({ description: 'Image height in pixels', example: 1080, minimum: 480, maximum: 4096 })
   @IsNumber()
-  @Min(480)
-  @Max(4096)
+  @Min(480, { message: 'Image height must be at least 480px. Please use a higher resolution.' })
+  @Max(4096, { message: 'Image height cannot exceed 4096px.' })
   height: number;
 
   @ApiProperty({ description: 'Image format', example: 'jpeg', enum: ['jpeg', 'png'] })
@@ -73,7 +73,7 @@ export class SubmitActionDto {
     maximum: 1,
   })
   @IsNumber()
-  @Min(0.80, { message: 'Confidence must be at least 0.80 (80%). Please ensure the object is clearly visible.' })
+  @Min(0.80, { message: 'Confidence too low ({value}). Ensure the object is clearly visible and well-lit.' })
   @Max(1)
   confidence: number;
 
@@ -84,7 +84,7 @@ export class SubmitActionDto {
     maximum: 1,
   })
   @IsNumber()
-  @Min(0.25, { message: 'Bounding box area must be at least 0.25 (25% of image). Please move closer to the object.' })
+  @Min(0.25, { message: 'Object too small in frame ({value}). Please move closer to fill at least 25% of the screen.' })
   @Max(1)
   boundingBoxAreaRatio: number;
 
@@ -95,7 +95,7 @@ export class SubmitActionDto {
     maximum: 5,
   })
   @IsNumber()
-  @Min(4, { message: 'At least 4 frames must be detected. Please keep the camera steady and ensure the object is visible.' })
+  @Min(4, { message: 'Object detected in too few frames ({value}/5). Hold the camera steady on the object.' })
   @Max(5)
   frameCountDetected: number;
 
@@ -106,7 +106,7 @@ export class SubmitActionDto {
     maximum: 1,
   })
   @IsNumber()
-  @Min(0.3, { message: 'Motion score must be at least 0.3. Please move the camera slightly while capturing.' })
+  @Min(0.3, { message: 'Motion score too low ({value}). Please move the camera slightly to prove it is a live video.' })
   @Max(1)
   motionScore: number;
 
@@ -146,6 +146,7 @@ export class SubmitActionDto {
   @ApiProperty({ description: 'GPS altitude in meters (optional)', example: 10.5, required: false, minimum: 0 })
   @IsNumber()
   @Min(0)
+  @IsOptional()
   gpsAltitude?: number;
 
   @ApiProperty({ description: 'Capture timestamp in Unix milliseconds', example: 1234567890123 })
