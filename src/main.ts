@@ -80,14 +80,20 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Ecoproof API')
-      .setDescription('Smart Recycling Verification Backend API Documentation\n\n' +
-        'This API provides endpoints for:\n' +
-        '- User authentication and registration\n' +
-        '- Recycling point management\n' +
-        '- Recycling action submission and verification\n' +
-        '- User profile and rewards\n' +
-        '- Health checks\n\n' +
-        'All endpoints use JWT Bearer authentication except for public endpoints.')
+      .setDescription(
+        '# 🌿 Ecoproof API Documentation\n\n' +
+          'Welcome to the **Ecoproof** backend API. This API empowers the Smart Recycling Verification system, using AI to verify recycling actions and reward users.\n\n' +
+          '## 🚀 Getting Started\n' +
+          'Most endpoints require authentication. To authenticate:\n' +
+          '1. Use `POST /auth/register` to create an account or `POST /auth/login` to sign in.\n' +
+          '2. Copy the `accessToken` from the response.\n' +
+          '3. Click the **Authorize** button above and paste your token.\n\n' +
+          '## 📚 Key Resources\n' +
+          '- **Authentication**: Manage your session and security.\n' +
+          '- **Recycle Actions**: Submit photos for AI verification.\n' +
+          '- **Recycling Points**: Find locations near you.\n' +
+          '- **Users**: Track your impact and rewards.',
+      )
       .setVersion('1.0')
       .addBearerAuth(
         {
@@ -108,10 +114,14 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'Ecoproof API Docs',
+      customCss: '.swagger-ui .topbar { display: none }',
       swaggerOptions: {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        docExpansion: 'none',
+        filter: true,
       },
     });
   }
