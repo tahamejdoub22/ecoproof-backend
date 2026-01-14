@@ -112,7 +112,11 @@ async function bootstrap() {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        docExpansion: 'none',
+        filter: true,
       },
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'Ecoproof API Docs',
     });
   }
 
