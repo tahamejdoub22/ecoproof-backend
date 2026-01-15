@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -6,7 +6,7 @@ export class RegisterDto {
     description: 'User email address',
     example: 'user@example.com',
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Please enter a valid email address (e.g. user@example.com)' })
   email: string;
 
   @ApiProperty({
@@ -15,7 +15,7 @@ export class RegisterDto {
     minLength: 8,
   })
   @IsString()
-  @MinLength(8)
+  @MinLength(8, { message: 'Password must be at least 8 characters long for your security' })
   password: string;
 
   @ApiProperty({
@@ -33,7 +33,7 @@ export class LoginDto {
     description: 'User email address',
     example: 'user@example.com',
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Please enter a valid email address' })
   email: string;
 
   @ApiProperty({
@@ -41,6 +41,7 @@ export class LoginDto {
     example: 'SecurePassword123!',
   })
   @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
   password: string;
 
   @ApiProperty({
@@ -59,5 +60,6 @@ export class RefreshTokenDto {
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
   @IsString()
+  @IsNotEmpty({ message: 'Refresh token is required' })
   refreshToken: string;
 }
