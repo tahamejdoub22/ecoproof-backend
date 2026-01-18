@@ -1,11 +1,11 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { User, UserRole } from '../../entities/user.entity';
-import { AuditService } from '../audit/audit.service';
-import { AuditActionType } from '../../entities/audit-log.entity';
+import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import * as bcrypt from "bcrypt";
+import { User, UserRole } from "../../entities/user.entity";
+import { AuditService } from "../audit/audit.service";
+import { AuditActionType } from "../../entities/audit-log.entity";
 
 @Injectable()
 export class AuthService {
@@ -29,7 +29,7 @@ export class AuthService {
     // Check if user exists
     const existing = await this.userRepo.findOne({ where: { email } });
     if (existing) {
-      throw new UnauthorizedException('Email already registered');
+      throw new UnauthorizedException("Email already registered");
     }
 
     // Hash password
@@ -76,13 +76,13 @@ export class AuthService {
   ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
     const user = await this.userRepo.findOne({ where: { email } });
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Verify password
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Update device fingerprint if provided
@@ -115,7 +115,7 @@ export class AuthService {
   async validateUser(userId: string): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException("User not found");
     }
     return user;
   }
@@ -133,8 +133,8 @@ export class AuthService {
       role: user.role,
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    const accessToken = this.jwtService.sign(payload, { expiresIn: "15m" });
+    const refreshToken = this.jwtService.sign(payload, { expiresIn: "7d" });
 
     return { accessToken, refreshToken };
   }
@@ -153,11 +153,13 @@ export class AuthService {
         role: user.role,
       };
 
-      const accessToken = this.jwtService.sign(newPayload, { expiresIn: '15m' });
+      const accessToken = this.jwtService.sign(newPayload, {
+        expiresIn: "15m",
+      });
 
       return { accessToken };
     } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException("Invalid refresh token");
     }
   }
 }

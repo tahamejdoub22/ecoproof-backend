@@ -1,5 +1,5 @@
-import { applyDecorators, Type } from '@nestjs/common';
-import { ApiResponse, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
+import { applyDecorators, Type } from "@nestjs/common";
+import { ApiResponse, ApiExtraModels, getSchemaPath } from "@nestjs/swagger";
 
 export interface ApiResponseOptions {
   status: number;
@@ -18,35 +18,35 @@ export const ApiStandardResponse = <TModel extends Type<any>>(
       status: options.status,
       description: options.description,
       schema: {
-        type: 'object',
+        type: "object",
         properties: {
           success: {
-            type: 'boolean',
+            type: "boolean",
             example: true,
           },
           data: options.isArray
             ? {
-                type: 'array',
+                type: "array",
                 items: { $ref: getSchemaPath(model) },
               }
             : {
                 $ref: getSchemaPath(model),
               },
           meta: {
-            type: 'object',
+            type: "object",
             properties: {
               timestamp: {
-                type: 'string',
-                format: 'date-time',
-                example: '2024-01-15T10:30:00Z',
+                type: "string",
+                format: "date-time",
+                example: "2024-01-15T10:30:00Z",
               },
               requestId: {
-                type: 'string',
-                example: '550e8400-e29b-41d4-a716-446655440000',
+                type: "string",
+                example: "550e8400-e29b-41d4-a716-446655440000",
               },
               version: {
-                type: 'string',
-                example: 'v1',
+                type: "string",
+                example: "v1",
               },
             },
           },
@@ -57,56 +57,60 @@ export const ApiStandardResponse = <TModel extends Type<any>>(
   );
 };
 
-export const ApiErrorResponse = (status: number, description: string, example?: any) => {
+export const ApiErrorResponse = (
+  status: number,
+  description: string,
+  example?: any,
+) => {
   return ApiResponse({
     status,
     description,
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
           example: false,
         },
         error: {
-          type: 'object',
+          type: "object",
           properties: {
             code: {
-              type: 'string',
-              example: 'VALIDATION_ERROR',
+              type: "string",
+              example: "VALIDATION_ERROR",
             },
             message: {
-              type: 'string',
-              example: 'Please check your input and try again',
+              type: "string",
+              example: "Please check your input and try again",
             },
             details: {
-              type: 'object',
+              type: "object",
             },
             statusCode: {
-              type: 'number',
+              type: "number",
               example: status,
             },
           },
         },
         meta: {
-          type: 'object',
+          type: "object",
           properties: {
             timestamp: {
-              type: 'string',
-              format: 'date-time',
+              type: "string",
+              format: "date-time",
             },
             requestId: {
-              type: 'string',
+              type: "string",
             },
             path: {
-              type: 'string',
+              type: "string",
             },
             method: {
-              type: 'string',
+              type: "string",
             },
             version: {
-              type: 'string',
-              example: 'v1',
+              type: "string",
+              example: "v1",
             },
           },
         },
@@ -115,4 +119,3 @@ export const ApiErrorResponse = (status: number, description: string, example?: 
     ...(example && { example }),
   });
 };
-

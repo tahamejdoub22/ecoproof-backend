@@ -1,12 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { Reward } from '../../entities/reward.entity';
-import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
-import { MaterialType } from '../../entities/recycling-point.entity';
-import { User } from '../../entities/user.entity';
-import { RecyclingPoint } from '../../entities/recycling-point.entity';
-import { TrustService } from '../trust/trust.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
+import { Reward } from "../../entities/reward.entity";
+import {
+  RecycleAction,
+  ActionStatus,
+} from "../../entities/recycle-action.entity";
+import { MaterialType } from "../../entities/recycling-point.entity";
+import { User } from "../../entities/user.entity";
+import { RecyclingPoint } from "../../entities/recycling-point.entity";
+import { TrustService } from "../trust/trust.service";
 
 @Injectable()
 export class RewardsService {
@@ -57,7 +60,7 @@ export class RewardsService {
       // Load action with relations
       const action = await queryRunner.manager.findOne(RecycleAction, {
         where: { id: actionId },
-        relations: ['user', 'recyclingPoint'],
+        relations: ["user", "recyclingPoint"],
       });
 
       if (!action || action.status !== ActionStatus.VERIFIED) {
@@ -86,7 +89,9 @@ export class RewardsService {
       const basePoints = this.BASE_POINTS[action.objectType];
       const locationMultiplier = action.recyclingPoint.multiplier;
       const streakMultiplier = this.calculateStreakMultiplier(action.user);
-      const trustMultiplier = this.trustService.getTrustMultiplier(action.user.trustScore);
+      const trustMultiplier = this.trustService.getTrustMultiplier(
+        action.user.trustScore,
+      );
 
       const finalPoints = Math.floor(
         basePoints * locationMultiplier * streakMultiplier * trustMultiplier,
@@ -121,7 +126,10 @@ export class RewardsService {
       return finalPoints;
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`Failed to calculate and award points: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to calculate and award points: ${error.message}`,
+        error.stack,
+      );
       throw error;
     } finally {
       await queryRunner.release();
@@ -131,15 +139,17 @@ export class RewardsService {
   /**
    * Check all limits before awarding points
    */
-  private async checkLimits(action: RecycleAction): Promise<{ allowed: boolean; reason?: string }> {
+  private async checkLimits(
+    action: RecycleAction,
+  ): Promise<{ allowed: boolean; reason?: string }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // 1. Daily global limit
     const todayRewards = await this.rewardRepo
-      .createQueryBuilder('reward')
-      .where('reward.userId = :userId', { userId: action.userId })
-      .andWhere('reward.createdAt >= :today', { today })
+      .createQueryBuilder("reward")
+      .where("reward.userId = :userId", { userId: action.userId })
+      .andWhere("reward.createdAt >= :today", { today })
       .getMany();
 
     const todayTotal = todayRewards.reduce((sum, r) => sum + r.finalPoints, 0);
@@ -152,7 +162,9 @@ export class RewardsService {
 
     // 2. Daily location limit
     const todayLocationRewards = todayRewards.filter(
-      (r) => r.actionId === action.id || this.actionRepo.findOne({ where: { id: r.actionId } }),
+      (r) =>
+        r.actionId === action.id ||
+        this.actionRepo.findOne({ where: { id: r.actionId } }),
     );
 
     // Get location points for today
@@ -162,7 +174,7 @@ export class RewardsService {
         recyclingPointId: action.recyclingPointId,
         status: ActionStatus.VERIFIED,
       },
-      relations: ['reward'],
+      relations: ["reward"],
     });
 
     const locationTodayTotal = locationActions
@@ -179,11 +191,13 @@ export class RewardsService {
     // 3. Same material cooldown (3 per 10 minutes)
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     const recentSameMaterial = await this.actionRepo
-      .createQueryBuilder('action')
-      .where('action.userId = :userId', { userId: action.userId })
-      .andWhere('action.objectType = :objectType', { objectType: action.objectType })
-      .andWhere('action.status = :status', { status: ActionStatus.VERIFIED })
-      .andWhere('action.createdAt >= :tenMinutesAgo', { tenMinutesAgo })
+      .createQueryBuilder("action")
+      .where("action.userId = :userId", { userId: action.userId })
+      .andWhere("action.objectType = :objectType", {
+        objectType: action.objectType,
+      })
+      .andWhere("action.status = :status", { status: ActionStatus.VERIFIED })
+      .andWhere("action.createdAt >= :tenMinutesAgo", { tenMinutesAgo })
       .getCount();
 
     if (recentSameMaterial >= this.MAX_SAME_MATERIAL_PER_10MIN) {
@@ -196,7 +210,7 @@ export class RewardsService {
     // 4. Global cooldown (30 seconds)
     const lastAction = await this.actionRepo.findOne({
       where: { userId: action.userId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
 
     if (lastAction && lastAction.id !== action.id) {
@@ -215,11 +229,12 @@ export class RewardsService {
         userId: action.userId,
         recyclingPointId: action.recyclingPointId,
       },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
 
     if (lastLocationAction && lastLocationAction.id !== action.id) {
-      const secondsSince = (Date.now() - lastLocationAction.createdAt.getTime()) / 1000;
+      const secondsSince =
+        (Date.now() - lastLocationAction.createdAt.getTime()) / 1000;
       if (secondsSince < this.LOCATION_COOLDOWN_SECONDS) {
         return {
           allowed: false,
@@ -243,13 +258,17 @@ export class RewardsService {
    * Update user streak
    */
   private async updateStreak(userId: string, queryRunner: any): Promise<void> {
-    const user = await queryRunner.manager.findOne(User, { where: { id: userId } });
+    const user = await queryRunner.manager.findOne(User, {
+      where: { id: userId },
+    });
     if (!user) return;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const lastActionDate = user.lastActionAt ? new Date(user.lastActionAt) : null;
+    const lastActionDate = user.lastActionAt
+      ? new Date(user.lastActionAt)
+      : null;
     if (lastActionDate) {
       lastActionDate.setHours(0, 0, 0, 0);
     }

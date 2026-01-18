@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AuditLog, AuditActionType } from '../../entities/audit-log.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { AuditLog, AuditActionType } from "../../entities/audit-log.entity";
 
 @Injectable()
 export class AuditService {
@@ -39,7 +39,10 @@ export class AuditService {
 
       await this.auditLogRepo.save(log);
     } catch (error) {
-      this.logger.error(`Failed to log audit event: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to log audit event: ${error.message}`,
+        error.stack,
+      );
       // Don't throw - audit logging should not break the flow
     }
   }
