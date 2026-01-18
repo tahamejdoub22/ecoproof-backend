@@ -1,11 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty } from "@nestjs/swagger";
 
 export class PaginatedResponseDto<T> {
-  @ApiProperty({ description: 'Array of items', isArray: true })
+  @ApiProperty({ description: "Array of items", isArray: true })
   data: T[];
 
   @ApiProperty({
-    description: 'Pagination metadata',
+    description: "Pagination metadata",
     example: {
       page: 1,
       limit: 20,
@@ -24,4 +24,3 @@ export class PaginatedResponseDto<T> {
     hasPrev: boolean;
   };
 }
-
