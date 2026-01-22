@@ -1,9 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { User } from '../../entities/user.entity';
-import { TrustHistory } from '../../entities/trust-history.entity';
-import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
+import { User } from "../../entities/user.entity";
+import { TrustHistory } from "../../entities/trust-history.entity";
+import {
+  RecycleAction,
+  ActionStatus,
+} from "../../entities/recycle-action.entity";
 
 @Injectable()
 export class TrustService {
@@ -41,7 +44,9 @@ export class TrustService {
     await queryRunner.startTransaction();
 
     try {
-      const user = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      const user = await queryRunner.manager.findOne(User, {
+        where: { id: userId },
+      });
       if (!user) {
         throw new Error(`User not found: ${userId}`);
       }
@@ -49,13 +54,16 @@ export class TrustService {
       // Check minimum time between increases
       const lastIncrease = await queryRunner.manager.findOne(TrustHistory, {
         where: { userId, changeAmount: this.REWARD_VERIFIED },
-        order: { createdAt: 'DESC' },
+        order: { createdAt: "DESC" },
       });
 
       if (lastIncrease) {
-        const hoursSince = (Date.now() - lastIncrease.createdAt.getTime()) / (1000 * 60 * 60);
+        const hoursSince =
+          (Date.now() - lastIncrease.createdAt.getTime()) / (1000 * 60 * 60);
         if (hoursSince < this.MIN_HOURS_BETWEEN_INCREASES) {
-          this.logger.debug(`Trust increase skipped: too soon (${hoursSince.toFixed(2)}h)`);
+          this.logger.debug(
+            `Trust increase skipped: too soon (${hoursSince.toFixed(2)}h)`,
+          );
           await queryRunner.rollbackTransaction();
           return;
         }
@@ -74,15 +82,20 @@ export class TrustService {
         previousScore,
         newScore,
         changeAmount: this.REWARD_VERIFIED,
-        reason: 'Verified recycling action',
+        reason: "Verified recycling action",
         actionId,
       });
 
       await queryRunner.commitTransaction();
-      this.logger.log(`Trust increased for user ${userId}: ${previousScore} → ${newScore}`);
+      this.logger.log(
+        `Trust increased for user ${userId}: ${previousScore} → ${newScore}`,
+      );
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`Failed to increase trust: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to increase trust: ${error.message}`,
+        error.stack,
+      );
       throw error;
     } finally {
       await queryRunner.release();
@@ -103,7 +116,9 @@ export class TrustService {
     await queryRunner.startTransaction();
 
     try {
-      const user = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      const user = await queryRunner.manager.findOne(User, {
+        where: { id: userId },
+      });
       if (!user) {
         throw new Error(`User not found: ${userId}`);
       }
@@ -129,10 +144,15 @@ export class TrustService {
       });
 
       await queryRunner.commitTransaction();
-      this.logger.warn(`Trust decreased for user ${userId}: ${previousScore} → ${newScore} (${reason})`);
+      this.logger.warn(
+        `Trust decreased for user ${userId}: ${previousScore} → ${newScore} (${reason})`,
+      );
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`Failed to decrease trust: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to decrease trust: ${error.message}`,
+        error.stack,
+      );
       throw error;
     } finally {
       await queryRunner.release();
@@ -157,7 +177,13 @@ export class TrustService {
    */
   async applyPenalty(
     userId: string,
-    violationType: 'duplicate' | 'gps_anomaly' | 'gps_accuracy' | 'rejected' | 'suspicious' | 'phash_similar',
+    violationType:
+      | "duplicate"
+      | "gps_anomaly"
+      | "gps_accuracy"
+      | "rejected"
+      | "suspicious"
+      | "phash_similar",
     actionId?: string,
   ): Promise<void> {
     const penalties = {
@@ -170,7 +196,12 @@ export class TrustService {
     };
 
     const reason = `Violation: ${violationType}`;
-    await this.decreaseTrust(userId, reason, penalties[violationType], actionId);
+    await this.decreaseTrust(
+      userId,
+      reason,
+      penalties[violationType],
+      actionId,
+    );
   }
 
   /**
@@ -181,17 +212,20 @@ export class TrustService {
     cutoffDate.setDate(cutoffDate.getDate() - this.DECAY_DAYS);
 
     return this.trustHistoryRepo
-      .createQueryBuilder('history')
-      .where('history.userId = :userId', { userId })
-      .andWhere('history.createdAt >= :cutoffDate', { cutoffDate })
-      .andWhere('history.changeAmount < 0') // Only violations
+      .createQueryBuilder("history")
+      .where("history.userId = :userId", { userId })
+      .andWhere("history.createdAt >= :cutoffDate", { cutoffDate })
+      .andWhere("history.changeAmount < 0") // Only violations
       .getMany();
   }
 
   /**
    * Apply time-based decay to penalty
    */
-  private applyTimeDecay(penalty: number, recentViolations: TrustHistory[]): number {
+  private applyTimeDecay(
+    penalty: number,
+    recentViolations: TrustHistory[],
+  ): number {
     // If no recent violations, apply full penalty
     if (recentViolations.length === 0) {
       return penalty;
