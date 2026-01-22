@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
-import { AIVerificationService } from './ai-verification.service';
-import { ConfigModule } from '@nestjs/config';
+import { Module } from "@nestjs/common";
+import { AIVerificationService } from "./ai-verification.service";
+import { ConfigModule } from "@nestjs/config";
 
 @Module({
   imports: [ConfigModule],

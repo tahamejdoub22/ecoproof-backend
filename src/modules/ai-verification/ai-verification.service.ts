@@ -1,9 +1,9 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
-import { MaterialType } from '../../entities/recycling-point.entity';
+import { Injectable, Logger, HttpException, HttpStatus } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import axios from "axios";
+import * as fs from "fs";
+import * as path from "path";
+import { MaterialType } from "../../entities/recycling-point.entity";
 
 export interface AIVerificationResult {
   objectType: string;
@@ -23,25 +23,26 @@ export interface AIVerificationResponse {
 }
 
 export enum AIProvider {
-  ROBOFLOW = 'roboflow', // Roboflow Trash Detection (BEST for recycling - trained model)
-  GEMINI = 'gemini', // Google Gemini Vision (Fallback - Free tier: 60 req/min)
+  ROBOFLOW = "roboflow", // Roboflow Trash Detection (BEST for recycling - trained model)
+  GEMINI = "gemini", // Google Gemini Vision (Fallback - Free tier: 60 req/min)
 }
 
 @Injectable()
 export class AIVerificationService {
   private readonly logger = new Logger(AIVerificationService.name);
-  
+
   // Gemini Configuration
   private readonly geminiApiKey: string | null;
   private readonly geminiModel: string;
-  private readonly geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-  
+  private readonly geminiBaseUrl =
+    "https://generativelanguage.googleapis.com/v1beta";
+
   // Roboflow Configuration (Trash Detection - BEST for recycling)
   private readonly roboflowApiKey: string | null;
   private readonly roboflowModelId: string;
   private readonly roboflowVersion: number;
-  private readonly roboflowBaseUrl = 'https://serverless.roboflow.com';
-  
+  private readonly roboflowBaseUrl = "https://serverless.roboflow.com";
+
   // General Configuration
   private readonly timeout: number;
   private readonly enabled: boolean;
@@ -50,31 +51,43 @@ export class AIVerificationService {
 
   constructor(private configService: ConfigService) {
     // Roboflow (Trash Detection - BEST for recycling)
-    this.roboflowApiKey = this.configService.get('ROBOFLOW_API_KEY') || null;
-    this.roboflowModelId = this.configService.get('ROBOFLOW_MODEL_ID') || 'trashnet-a-set-of-annotated-images-of-trash-that-can-be-used-for-object-detection-lxfrw';
-    this.roboflowVersion = parseInt(this.configService.get('ROBOFLOW_VERSION') || '2', 10);
-    
+    this.roboflowApiKey = this.configService.get("ROBOFLOW_API_KEY") || null;
+    this.roboflowModelId =
+      this.configService.get("ROBOFLOW_MODEL_ID") ||
+      "trashnet-a-set-of-annotated-images-of-trash-that-can-be-used-for-object-detection-lxfrw";
+    this.roboflowVersion = parseInt(
+      this.configService.get("ROBOFLOW_VERSION") || "2",
+      10,
+    );
+
     // Gemini (Fallback)
-    this.geminiApiKey = this.configService.get('GEMINI_API_KEY') || null;
-    this.geminiModel = this.configService.get('GEMINI_MODEL') || 'gemini-1.5-flash';
-    
+    this.geminiApiKey = this.configService.get("GEMINI_API_KEY") || null;
+    this.geminiModel =
+      this.configService.get("GEMINI_MODEL") || "gemini-1.5-flash";
+
     // General
-    this.timeout = this.configService.get('AI_VERIFICATION_TIMEOUT') || 30000;
-    this.enabled = this.configService.get('AI_VERIFICATION_ENABLED') !== 'false';
-    
+    this.timeout = this.configService.get("AI_VERIFICATION_TIMEOUT") || 30000;
+    this.enabled =
+      this.configService.get("AI_VERIFICATION_ENABLED") !== "false";
+
     // Provider priority: Roboflow > Gemini
-    const providerStr = this.configService.get('AI_PROVIDER') || 'roboflow';
-    this.preferredProvider = AIProvider[providerStr.toUpperCase()] || AIProvider.ROBOFLOW;
-    
+    const providerStr = this.configService.get("AI_PROVIDER") || "roboflow";
+    this.preferredProvider =
+      AIProvider[providerStr.toUpperCase()] || AIProvider.ROBOFLOW;
+
     // Setup fallback chain
     this.fallbackProviders = [AIProvider.GEMINI];
-    
-    this.logger.log(`AI Verification enabled: ${this.preferredProvider} (primary)`);
+
+    this.logger.log(
+      `AI Verification enabled: ${this.preferredProvider} (primary)`,
+    );
     if (this.roboflowApiKey) {
-      this.logger.log('✅ Roboflow Trash Detection configured (BEST for recycling)');
+      this.logger.log(
+        "✅ Roboflow Trash Detection configured (BEST for recycling)",
+      );
     }
     if (this.geminiApiKey) {
-      this.logger.log('✅ Google Gemini API configured (fallback)');
+      this.logger.log("✅ Google Gemini API configured (fallback)");
     }
   }
 
@@ -87,7 +100,7 @@ export class AIVerificationService {
     claimedObjectType: MaterialType,
   ): Promise<AIVerificationResponse> {
     if (!this.enabled) {
-      this.logger.warn('AI Verification disabled, skipping...');
+      this.logger.warn("AI Verification disabled, skipping...");
       return {
         success: true,
         result: null,
@@ -96,29 +109,35 @@ export class AIVerificationService {
     }
 
     const providers = [this.preferredProvider, ...this.fallbackProviders];
-    
+
     for (const provider of providers) {
       try {
         this.logger.debug(`Trying AI provider: ${provider}`);
-        const result = await this.verifyWithProvider(provider, imageUrl, claimedObjectType);
-        
+        const result = await this.verifyWithProvider(
+          provider,
+          imageUrl,
+          claimedObjectType,
+        );
+
         if (result.success) {
           this.logger.log(`✅ AI Verification successful with ${provider}`);
           return result;
         }
       } catch (error) {
-        this.logger.warn(`Provider ${provider} failed: ${error.message}, trying fallback...`);
+        this.logger.warn(
+          `Provider ${provider} failed: ${error.message}, trying fallback...`,
+        );
         continue;
       }
     }
 
     // All providers failed
-    this.logger.error('All AI providers failed');
+    this.logger.error("All AI providers failed");
     return {
       success: false,
       result: null,
       score: 0.0,
-      error: 'All AI verification providers failed',
+      error: "All AI verification providers failed",
     };
   }
 
@@ -140,18 +159,18 @@ export class AIVerificationService {
       switch (provider) {
         case AIProvider.ROBOFLOW:
           if (!this.roboflowApiKey) {
-            throw new Error('Roboflow API key not configured');
+            throw new Error("Roboflow API key not configured");
           }
           aiResponse = await this.callRoboflow(imageBase64, claimedObjectType);
-          usedProvider = 'roboflow';
+          usedProvider = "roboflow";
           break;
 
         case AIProvider.GEMINI:
           if (!this.geminiApiKey) {
-            throw new Error('Gemini API key not configured');
+            throw new Error("Gemini API key not configured");
           }
           aiResponse = await this.callGemini(imageBase64, claimedObjectType);
-          usedProvider = 'gemini';
+          usedProvider = "gemini";
           break;
 
         default:
@@ -186,11 +205,11 @@ export class AIVerificationService {
   private async downloadImage(imageUrl: string): Promise<string> {
     try {
       const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
+        responseType: "arraybuffer",
         timeout: 10000,
       });
 
-      const tempDir = path.join(process.cwd(), 'temp');
+      const tempDir = path.join(process.cwd(), "temp");
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
@@ -212,72 +231,78 @@ export class AIVerificationService {
    */
   private async imageToBase64(imagePath: string): Promise<string> {
     const imageBuffer = fs.readFileSync(imagePath);
-    return imageBuffer.toString('base64');
+    return imageBuffer.toString("base64");
   }
 
   /**
    * Call Roboflow Trash Detection API (BEST for recycling - trained model)
    */
-  private async callRoboflow(imageBase64: string, claimedObjectType: MaterialType): Promise<string> {
+  private async callRoboflow(
+    imageBase64: string,
+    claimedObjectType: MaterialType,
+  ): Promise<string> {
     try {
       const url = `${this.roboflowBaseUrl}/${this.roboflowModelId}/${this.roboflowVersion}`;
-      
-      const response = await axios.post(
-        url,
-        imageBase64,
-        {
-          params: {
-            api_key: this.roboflowApiKey,
-          },
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          timeout: this.timeout,
+
+      const response = await axios.post(url, imageBase64, {
+        params: {
+          api_key: this.roboflowApiKey,
         },
-      );
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        timeout: this.timeout,
+      });
 
       // Parse Roboflow response
       const roboflowData = response.data;
-      
+
       // Roboflow returns predictions with classes and confidence
       // Format: { predictions: [{ class: string, confidence: number, ... }] }
       const predictions = roboflowData.predictions || [];
-      
+
       if (predictions.length === 0) {
         return JSON.stringify({
-          object_type: 'unknown',
+          object_type: "unknown",
           confidence: 0.0,
           authentic: false,
-          quality: 'poor',
-          reasoning: 'No objects detected in image',
+          quality: "poor",
+          reasoning: "No objects detected in image",
         });
       }
 
       // Get best prediction
-      const bestPrediction = predictions.sort((a: any, b: any) => b.confidence - a.confidence)[0];
-      
+      const bestPrediction = predictions.sort(
+        (a: any, b: any) => b.confidence - a.confidence,
+      )[0];
+
       // Map Roboflow classes to our material types
-      const detectedType = this.mapRoboflowClassToMaterial(bestPrediction.class);
+      const detectedType = this.mapRoboflowClassToMaterial(
+        bestPrediction.class,
+      );
       const confidence = bestPrediction.confidence || 0.0;
-      
+
       // Reject if class is "trash" (too generic) or "unknown"
-      if (detectedType === 'unknown' || bestPrediction.class.toLowerCase() === 'trash') {
+      if (
+        detectedType === "unknown" ||
+        bestPrediction.class.toLowerCase() === "trash"
+      ) {
         return JSON.stringify({
-          object_type: 'unknown',
+          object_type: "unknown",
           confidence: 0.0,
           authentic: false,
-          quality: 'poor',
+          quality: "poor",
           reasoning: `Roboflow detected generic "trash" class. Cannot verify specific material type.`,
         });
       }
-      
+
       // Determine authenticity (high confidence = authentic)
       const authentic = confidence >= 0.7;
-      
+
       // Quality assessment based on confidence
-      let quality = 'fair';
-      if (confidence >= 0.9) quality = 'good';
-      else if (confidence < 0.5) quality = 'poor';
+      let quality = "fair";
+      if (confidence >= 0.9) quality = "good";
+      else if (confidence < 0.5) quality = "poor";
 
       return JSON.stringify({
         object_type: detectedType,
@@ -289,13 +314,13 @@ export class AIVerificationService {
     } catch (error) {
       if (error.response?.status === 429) {
         throw new HttpException(
-          'Roboflow API rate limit exceeded. Please try again later.',
+          "Roboflow API rate limit exceeded. Please try again later.",
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
       if (error.response?.status === 401) {
         throw new HttpException(
-          'Roboflow API key is invalid.',
+          "Roboflow API key is invalid.",
           HttpStatus.UNAUTHORIZED,
         );
       }
@@ -313,55 +338,62 @@ export class AIVerificationService {
    */
   private mapRoboflowClassToMaterial(roboflowClass: string): string {
     const classLower = roboflowClass.toLowerCase().trim();
-    
+
     // Direct mapping - material types now match Roboflow classes exactly
     switch (classLower) {
-      case 'cardboard':
-        return 'cardboard';
-      
-      case 'glass':
-        return 'glass';
-      
-      case 'metal':
-        return 'metal';
-      
-      case 'paper':
-        return 'paper';
-      
-      case 'plastic':
-        return 'plastic';
-      
-      case 'trash':
+      case "cardboard":
+        return "cardboard";
+
+      case "glass":
+        return "glass";
+
+      case "metal":
+        return "metal";
+
+      case "paper":
+        return "paper";
+
+      case "plastic":
+        return "plastic";
+
+      case "trash":
         // Trash is generic - reject (return unknown to trigger rejection)
-        return 'unknown';
-      
+        return "unknown";
+
       default:
         // Fallback: try to match by substring
-        if (classLower.includes('cardboard') || classLower.includes('box')) {
-          return 'cardboard';
+        if (classLower.includes("cardboard") || classLower.includes("box")) {
+          return "cardboard";
         }
-        if (classLower.includes('glass')) {
-          return 'glass';
+        if (classLower.includes("glass")) {
+          return "glass";
         }
-        if (classLower.includes('metal') || classLower.includes('can') || classLower.includes('aluminum')) {
-          return 'metal';
+        if (
+          classLower.includes("metal") ||
+          classLower.includes("can") ||
+          classLower.includes("aluminum")
+        ) {
+          return "metal";
         }
-        if (classLower.includes('paper')) {
-          return 'paper';
+        if (classLower.includes("paper")) {
+          return "paper";
         }
-        if (classLower.includes('plastic') || classLower.includes('bottle')) {
-          return 'plastic';
+        if (classLower.includes("plastic") || classLower.includes("bottle")) {
+          return "plastic";
         }
-        
+
         // Unknown class - reject
-        return 'unknown';
+        return "unknown";
     }
   }
 
   /**
    * Call Google Gemini Vision API (BEST accuracy, free tier)
    */
-  private async callGemini(imageBase64: string, claimedObjectType: MaterialType): Promise<string> {
+  private async callGemini(
+    imageBase64: string,
+    claimedObjectType: MaterialType,
+  ): Promise<string> {
     const prompt = this.buildPrompt(claimedObjectType);
 
     try {
@@ -376,7 +408,7 @@ export class AIVerificationService {
                 },
                 {
                   inline_data: {
-                    mime_type: 'image/jpeg',
+                    mime_type: "image/jpeg",
                     data: imageBase64,
                   },
                 },
@@ -388,33 +420,33 @@ export class AIVerificationService {
             topK: 1,
             topP: 0.8,
             maxOutputTokens: 500,
-            responseMimeType: 'application/json',
+            responseMimeType: "application/json",
           },
         },
         {
           timeout: this.timeout,
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
         },
       );
 
       const text = response.data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) {
-        throw new Error('No response from Gemini API');
+        throw new Error("No response from Gemini API");
       }
 
       return text;
     } catch (error) {
       if (error.response?.status === 429) {
         throw new HttpException(
-          'Gemini API rate limit exceeded. Please try again later.',
+          "Gemini API rate limit exceeded. Please try again later.",
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
       if (error.response?.status === 401) {
         throw new HttpException(
-          'Gemini API key is invalid.',
+          "Gemini API key is invalid.",
           HttpStatus.UNAUTHORIZED,
         );
       }
@@ -424,7 +456,6 @@ export class AIVerificationService {
       );
     }
   }
-
 
   /**
    * Build prompt for Ollama
@@ -465,7 +496,7 @@ Important:
       // Extract JSON from response (in case there's extra text)
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('No JSON found in AI response');
+        throw new Error("No JSON found in AI response");
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
@@ -473,16 +504,16 @@ Important:
       // Validate structure
       if (
         !parsed.object_type ||
-        typeof parsed.confidence !== 'number' ||
-        typeof parsed.authentic !== 'boolean' ||
+        typeof parsed.confidence !== "number" ||
+        typeof parsed.authentic !== "boolean" ||
         !parsed.quality ||
         !parsed.reasoning
       ) {
-        throw new Error('Invalid AI response structure');
+        throw new Error("Invalid AI response structure");
       }
 
       // Validate object type (must match Roboflow classes)
-      const validTypes = ['cardboard', 'glass', 'metal', 'paper', 'plastic'];
+      const validTypes = ["cardboard", "glass", "metal", "paper", "plastic"];
       if (!validTypes.includes(parsed.object_type)) {
         throw new Error(`Invalid object type: ${parsed.object_type}`);
       }
@@ -493,7 +524,7 @@ Important:
       }
 
       // Validate quality
-      const validQualities = ['good', 'fair', 'poor'];
+      const validQualities = ["good", "fair", "poor"];
       if (!validQualities.includes(parsed.quality)) {
         throw new Error(`Invalid quality: ${parsed.quality}`);
       }
@@ -527,9 +558,10 @@ Important:
     } else {
       // Partial match (e.g., both are bottles)
       const bothBottles =
-        (result.objectType.includes('bottle') && claimedObjectType.includes('bottle')) ||
-        (result.objectType === 'paper' && claimedObjectType === 'cardboard') ||
-        (result.objectType === 'cardboard' && claimedObjectType === 'paper');
+        (result.objectType.includes("bottle") &&
+          claimedObjectType.includes("bottle")) ||
+        (result.objectType === "paper" && claimedObjectType === "cardboard") ||
+        (result.objectType === "cardboard" && claimedObjectType === "paper");
       if (bothBottles) {
         score += 0.25; // Partial credit
       }
@@ -544,9 +576,9 @@ Important:
     }
 
     // Quality affects score (bonus/penalty)
-    if (result.quality === 'good') {
+    if (result.quality === "good") {
       score = Math.min(1.0, score + 0.1);
-    } else if (result.quality === 'poor') {
+    } else if (result.quality === "poor") {
       score = Math.max(0.0, score - 0.2);
     }
 
@@ -569,9 +601,11 @@ Important:
   /**
    * Health check for AI services
    */
-  async healthCheck(): Promise<{ provider: string; healthy: boolean; error?: string }[]> {
+  async healthCheck(): Promise<
+    { provider: string; healthy: boolean; error?: string }[]
+  > {
     if (!this.enabled) {
-      return [{ provider: 'disabled', healthy: true }];
+      return [{ provider: "disabled", healthy: true }];
     }
 
     const checks: { provider: string; healthy: boolean; error?: string }[] = [];
@@ -589,12 +623,12 @@ Important:
           },
         );
         checks.push({
-          provider: 'roboflow',
+          provider: "roboflow",
           healthy: response.status < 500, // Not a server error
         });
       } catch (error) {
         checks.push({
-          provider: 'roboflow',
+          provider: "roboflow",
           healthy: false,
           error: error.message,
         });
@@ -609,12 +643,12 @@ Important:
           { timeout: 5000 },
         );
         checks.push({
-          provider: 'gemini',
+          provider: "gemini",
           healthy: response.status === 200,
         });
       } catch (error) {
         checks.push({
-          provider: 'gemini',
+          provider: "gemini",
           healthy: false,
           error: error.message,
         });
