@@ -6,7 +6,7 @@ export class RegisterDto {
     description: 'User email address',
     example: 'user@example.com',
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Please provide a valid email address.' })
   email: string;
 
   @ApiProperty({
@@ -15,7 +15,7 @@ export class RegisterDto {
     minLength: 8,
   })
   @IsString()
-  @MinLength(8)
+  @MinLength(8, { message: 'Password must be at least 8 characters long.' })
   password: string;
 
   @ApiProperty({
@@ -33,14 +33,14 @@ export class LoginDto {
     description: 'User email address',
     example: 'user@example.com',
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Please provide a valid email address.' })
   email: string;
 
   @ApiProperty({
     description: 'User password',
     example: 'SecurePassword123!',
   })
-  @IsString()
+  @IsString({ message: 'Please provide your password.' })
   password: string;
 
   @ApiProperty({
@@ -58,6 +58,6 @@ export class RefreshTokenDto {
     description: 'Refresh token',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
-  @IsString()
+  @IsString({ message: 'Refresh token is required.' })
   refreshToken: string;
 }
