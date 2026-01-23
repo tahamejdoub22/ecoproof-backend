@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, FindOptionsWhere, Between } from 'typeorm';
 import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
 import { MaterialType } from '../../entities/recycling-point.entity';
 import { RecyclingPoint } from '../../entities/recycling-point.entity';
@@ -12,7 +12,8 @@ import { RewardsService } from '../rewards/rewards.service';
 import { FraudService } from '../fraud/fraud.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../../entities/audit-log.entity';
-import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
+import { RecycleActionFilterDto } from '../../common/dto/recycle-action-filter.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface SubmitActionDto {
@@ -236,28 +237,45 @@ export class RecycleActionsService {
   }
 
   /**
-   * Get user's actions with pagination
+   * Get user's actions with pagination and filtering
    */
   async getUserActions(
     userId: string,
-    pagination: PaginationDto,
+    filter: RecycleActionFilterDto,
   ): Promise<PaginatedResponse<RecycleAction>> {
+    const where: FindOptionsWhere<RecycleAction> = { userId };
+
+    if (filter.status) {
+      where.status = filter.status;
+    }
+
+    if (filter.objectType) {
+      where.objectType = filter.objectType;
+    }
+
+    if (filter.fromDate && filter.toDate) {
+      where.createdAt = Between(new Date(filter.fromDate), new Date(filter.toDate));
+    }
+
+    const sortField = filter.sortBy || 'createdAt';
+    const sortOrder = filter.sortOrder || 'DESC';
+
     const [data, total] = await this.actionRepo.findAndCount({
-      where: { userId },
+      where,
       relations: ['recyclingPoint', 'reward'],
-      order: { createdAt: 'DESC' },
-      skip: pagination.skip,
-      take: pagination.take,
+      order: { [sortField]: sortOrder },
+      skip: filter.skip,
+      take: filter.take,
     });
 
-    const totalPages = Math.ceil(total / pagination.take);
-    const page = pagination.page || 1;
+    const totalPages = Math.ceil(total / filter.take);
+    const page = filter.page || 1;
 
     return {
       data,
       meta: {
         page,
-        limit: pagination.take,
+        limit: filter.take,
         total,
         totalPages,
         hasNext: page < totalPages,
