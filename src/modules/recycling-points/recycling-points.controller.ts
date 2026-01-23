@@ -2,6 +2,8 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { RecyclingPointsService } from './recycling-points.service';
 import { RecyclingPointDto } from '../../common/dto/recycling-point.dto';
+import { RecyclingPointFilterDto } from '../../common/dto/recycling-point-filter.dto';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @ApiTags('Recycling Points')
 @Controller('api/v1/recycling-points')
@@ -9,10 +11,10 @@ export class RecyclingPointsController {
   constructor(private pointsService: RecyclingPointsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all recycling points', description: 'Retrieve all active recycling points' })
-  @ApiResponse({ status: 200, description: 'List of recycling points', type: [RecyclingPointDto] })
-  async findAll() {
-    return this.pointsService.findAll();
+  @ApiOperation({ summary: 'Get all recycling points', description: 'Retrieve all recycling points with filtering and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of recycling points' })
+  async findAll(@Query() filter: RecyclingPointFilterDto): Promise<PaginatedResponse<RecyclingPointDto>> {
+    return this.pointsService.findAll(filter);
   }
 
   @Get('nearest')

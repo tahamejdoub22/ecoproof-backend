@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere, Like, Between } from 'typeorm';
 import { RecyclingPoint } from '../../entities/recycling-point.entity';
+import { RecyclingPointFilterDto } from '../../common/dto/recycling-point-filter.dto';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class RecyclingPointsService {
@@ -11,13 +13,55 @@ export class RecyclingPointsService {
   ) {}
 
   /**
-   * Get all active recycling points
+   * Get all recycling points with filtering and pagination
    */
-  async findAll(): Promise<RecyclingPoint[]> {
-    return this.pointRepo.find({
-      where: { isActive: true },
-      order: { name: 'ASC' },
+  async findAll(filter: RecyclingPointFilterDto): Promise<PaginatedResponse<RecyclingPoint>> {
+    const where: FindOptionsWhere<RecyclingPoint> = {};
+
+    // Default to active only unless explicitly requested otherwise
+    if (filter.isActive !== undefined) {
+      where.isActive = filter.isActive;
+    } else {
+      where.isActive = true;
+    }
+
+    if (filter.search) {
+      where.name = Like(`%${filter.search}%`);
+    }
+
+    if (filter.materialType) {
+      // @ts-expect-error - specific TypeORM behavior for simple-array
+      where.allowedMaterials = Like(`%${filter.materialType}%`);
+    }
+
+    if (filter.fromDate && filter.toDate) {
+      where.createdAt = Between(new Date(filter.fromDate), new Date(filter.toDate));
+    }
+
+    const sortField = filter.sortBy || 'name';
+    const sortOrder = filter.sortOrder || 'ASC';
+
+    const [data, total] = await this.pointRepo.findAndCount({
+      where,
+      order: { [sortField]: sortOrder },
+      skip: filter.skip,
+      take: filter.take,
     });
+
+    const totalPages = Math.ceil(total / filter.take);
+    const page = filter.page || 1;
+
+    return {
+      data,
+      meta: {
+        page,
+        limit: filter.take,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 
   /**

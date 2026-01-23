@@ -13,10 +13,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { RecycleActionsService } from './recycle-actions.service';
 import { SubmitActionDto } from '../../common/dto/submit-action.dto';
-import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
+import { RecycleActionFilterDto } from '../../common/dto/recycle-action-filter.dto';
 import { SubmitActionResponseDto } from '../../common/dto/submit-action-response.dto';
 import { ApiStandardResponse, ApiErrorResponse } from '../../common/decorators/api-response.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -215,10 +216,8 @@ export class RecycleActionsController {
   @Get('my-actions')
   @ApiOperation({
     summary: 'Get my recycling actions',
-    description: 'Get paginated list of recycling actions for the authenticated user',
+    description: 'Get paginated list of recycling actions for the authenticated user with filtering',
   })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page', example: 20 })
   @ApiStandardResponse(SubmitActionResponseDto, {
     status: 200,
     description: 'List of user recycling actions',
@@ -227,8 +226,8 @@ export class RecycleActionsController {
   @ApiErrorResponse(401, 'Unauthorized')
   async getMyActions(
     @Request() req: { user: User },
-    @Query() pagination: PaginationDto,
+    @Query() filter: RecycleActionFilterDto,
   ): Promise<PaginatedResponse<any>> {
-    return this.actionsService.getUserActions(req.user.id, pagination);
+    return this.actionsService.getUserActions(req.user.id, filter);
   }
 }
