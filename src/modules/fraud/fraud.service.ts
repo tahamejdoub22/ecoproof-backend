@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
-import { TrustService } from '../trust/trust.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  RecycleAction,
+  ActionStatus,
+} from "../../entities/recycle-action.entity";
+import { TrustService } from "../trust/trust.service";
 
 @Injectable()
 export class FraudService {
@@ -20,7 +23,7 @@ export class FraudService {
   async checkPatterns(actionId: string): Promise<void> {
     const action = await this.actionRepo.findOne({
       where: { id: actionId },
-      relations: ['user'],
+      relations: ["user"],
     });
 
     if (!action) {
@@ -45,10 +48,14 @@ export class FraudService {
       await this.actionRepo.save(action);
 
       // Apply penalty
-      await this.trustService.applyPenalty(action.userId, 'suspicious', actionId);
+      await this.trustService.applyPenalty(
+        action.userId,
+        "suspicious",
+        actionId,
+      );
 
       this.logger.warn(
-        `Action ${actionId} flagged for fraud: ${suspiciousPatterns.map((p) => p.reason).join(', ')}`,
+        `Action ${actionId} flagged for fraud: ${suspiciousPatterns.map((p) => p.reason).join(", ")}`,
       );
     }
   }
@@ -83,17 +90,17 @@ export class FraudService {
   }> {
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
     const count = await this.actionRepo
-      .createQueryBuilder('action')
-      .where('action.gpsLat BETWEEN :latMin AND :latMax', {
+      .createQueryBuilder("action")
+      .where("action.gpsLat BETWEEN :latMin AND :latMax", {
         latMin: action.gpsLat - 0.0001,
         latMax: action.gpsLat + 0.0001,
       })
-      .andWhere('action.gpsLng BETWEEN :lngMin AND :lngMax', {
+      .andWhere("action.gpsLng BETWEEN :lngMin AND :lngMax", {
         lngMin: action.gpsLng - 0.0001,
         lngMax: action.gpsLng + 0.0001,
       })
-      .andWhere('action.createdAt >= :oneMinuteAgo', { oneMinuteAgo })
-      .andWhere('action.userId != :userId', { userId: action.userId })
+      .andWhere("action.createdAt >= :oneMinuteAgo", { oneMinuteAgo })
+      .andWhere("action.userId != :userId", { userId: action.userId })
       .getCount();
 
     if (count >= 3) {
@@ -115,9 +122,9 @@ export class FraudService {
   }> {
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
     const count = await this.actionRepo
-      .createQueryBuilder('action')
-      .where('action.userId = :userId', { userId: action.userId })
-      .andWhere('action.createdAt >= :oneMinuteAgo', { oneMinuteAgo })
+      .createQueryBuilder("action")
+      .where("action.userId = :userId", { userId: action.userId })
+      .andWhere("action.createdAt >= :oneMinuteAgo", { oneMinuteAgo })
       .getCount();
 
     if (count > 5) {
@@ -139,9 +146,9 @@ export class FraudService {
   }> {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const recentActions = await this.actionRepo
-      .createQueryBuilder('action')
-      .where('action.userId = :userId', { userId: action.userId })
-      .andWhere('action.createdAt >= :fiveMinutesAgo', { fiveMinutesAgo })
+      .createQueryBuilder("action")
+      .where("action.userId = :userId", { userId: action.userId })
+      .andWhere("action.createdAt >= :fiveMinutesAgo", { fiveMinutesAgo })
       .getMany();
 
     const uniqueLocations = new Set(
@@ -179,13 +186,16 @@ export class FraudService {
   }> {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentActions = await this.actionRepo
-      .createQueryBuilder('action')
-      .where('action.userId = :userId', { userId: action.userId })
-      .andWhere('action.status = :status', { status: ActionStatus.VERIFIED })
-      .andWhere('action.createdAt >= :oneHourAgo', { oneHourAgo })
+      .createQueryBuilder("action")
+      .where("action.userId = :userId", { userId: action.userId })
+      .andWhere("action.status = :status", { status: ActionStatus.VERIFIED })
+      .andWhere("action.createdAt >= :oneHourAgo", { oneHourAgo })
       .getMany();
 
-    const totalPoints = recentActions.reduce((sum, a) => sum + (a.pointsAwarded || 0), 0);
+    const totalPoints = recentActions.reduce(
+      (sum, a) => sum + (a.pointsAwarded || 0),
+      0,
+    );
 
     if (totalPoints > 80) {
       return {

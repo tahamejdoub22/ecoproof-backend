@@ -1,0 +1,3 @@
+## 2026-01-24 - API Validation Messages and NestJS Pipes
+**Learning:** NestJS `ValidationPipe` default `exceptionFactory` computes a `messages` array but discards it, returning a generic message array instead. This forces clients (or filters) to regex-parse the error string to find the field name, which is fragile and breaks if custom "human" messages are used.
+**Action:** When customizing validation messages (e.g. "Please enter a valid email"), always ensure the global `ValidationPipe` uses a custom `exceptionFactory` that preserves the structure (e.g. returns `field: message`) so downstream filters can reliably parse it.

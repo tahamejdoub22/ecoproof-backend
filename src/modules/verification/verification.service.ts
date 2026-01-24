@@ -1,12 +1,21 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
-import { RecyclingPoint, MaterialType } from '../../entities/recycling-point.entity';
-import { User } from '../../entities/user.entity';
-import { AIVerificationService } from '../ai-verification/ai-verification.service';
-import { StorageService } from '../storage/storage.service';
-import { ValidationMessages, ValidationHints } from '../../common/dto/validation-messages';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
+import {
+  RecycleAction,
+  ActionStatus,
+} from "../../entities/recycle-action.entity";
+import {
+  RecyclingPoint,
+  MaterialType,
+} from "../../entities/recycling-point.entity";
+import { User } from "../../entities/user.entity";
+import { AIVerificationService } from "../ai-verification/ai-verification.service";
+import { StorageService } from "../storage/storage.service";
+import {
+  ValidationMessages,
+  ValidationHints,
+} from "../../common/dto/validation-messages";
 
 export interface VerificationResult {
   verified: boolean;
@@ -55,7 +64,7 @@ export class VerificationService {
   private readonly logger = new Logger(VerificationService.name);
 
   // Validation thresholds
-  private readonly MIN_CONFIDENCE = 0.80;
+  private readonly MIN_CONFIDENCE = 0.8;
   private readonly MIN_BOUNDING_BOX_AREA = 0.25;
   private readonly MIN_FRAME_COUNT = 4;
   private readonly MIN_MOTION_SCORE = 0.3;
@@ -89,7 +98,7 @@ export class VerificationService {
       // Load action with relations
       const action = await queryRunner.manager.findOne(RecycleAction, {
         where: { id: actionId },
-        relations: ['user', 'recyclingPoint'],
+        relations: ["user", "recyclingPoint"],
       });
 
       if (!action) {
@@ -248,15 +257,20 @@ export class VerificationService {
             detectedType: aiVerification.result?.objectType,
             confidence: aiVerification.result?.confidence,
             authentic: aiVerification.result?.authentic,
-            issues: aiVerification.score < 0.7 ? ['AI verification score too low'] : undefined,
+            issues:
+              aiVerification.score < 0.7
+                ? ["AI verification score too low"]
+                : undefined,
           },
         },
-        suggestions: verified ? undefined : [
-          'Try: Ensure object is clearly visible and well-lit',
-          'Try: Keep camera steady during capture',
-          'Try: Move closer to the recycling point',
-          'Try: Wait for better GPS accuracy',
-        ],
+        suggestions: verified
+          ? undefined
+          : [
+              "Try: Ensure object is clearly visible and well-lit",
+              "Try: Keep camera steady during capture",
+              "Try: Move closer to the recycling point",
+              "Try: Wait for better GPS accuracy",
+            ],
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -287,25 +301,33 @@ export class VerificationService {
 
     // Check confidence
     if (action.confidence < this.MIN_CONFIDENCE) {
-      issues.push(`Confidence ${(action.confidence * 100).toFixed(1)}% is below required ${(this.MIN_CONFIDENCE * 100).toFixed(0)}%`);
+      issues.push(
+        `Confidence ${(action.confidence * 100).toFixed(1)}% is below required ${(this.MIN_CONFIDENCE * 100).toFixed(0)}%`,
+      );
       suggestions.push(ValidationHints.CONFIDENCE_TOO_LOW);
     }
 
     // Check bounding box area
     if (action.boundingBoxAreaRatio < this.MIN_BOUNDING_BOX_AREA) {
-      issues.push(`Object size ${(action.boundingBoxAreaRatio * 100).toFixed(1)}% is below required ${(this.MIN_BOUNDING_BOX_AREA * 100).toFixed(0)}%`);
+      issues.push(
+        `Object size ${(action.boundingBoxAreaRatio * 100).toFixed(1)}% is below required ${(this.MIN_BOUNDING_BOX_AREA * 100).toFixed(0)}%`,
+      );
       suggestions.push(ValidationHints.BOUNDING_BOX_TOO_SMALL);
     }
 
     // Check frame count
     if (action.frameCountDetected < this.MIN_FRAME_COUNT) {
-      issues.push(`Only ${action.frameCountDetected} frame(s) detected, need at least ${this.MIN_FRAME_COUNT}`);
+      issues.push(
+        `Only ${action.frameCountDetected} frame(s) detected, need at least ${this.MIN_FRAME_COUNT}`,
+      );
       suggestions.push(ValidationHints.INSUFFICIENT_FRAMES);
     }
 
     // Check motion score
     if (action.motionScore < this.MIN_MOTION_SCORE) {
-      issues.push(`Motion score ${(action.motionScore * 100).toFixed(1)}% is below required ${(this.MIN_MOTION_SCORE * 100).toFixed(0)}%`);
+      issues.push(
+        `Motion score ${(action.motionScore * 100).toFixed(1)}% is below required ${(this.MIN_MOTION_SCORE * 100).toFixed(0)}%`,
+      );
       suggestions.push(ValidationHints.MOTION_TOO_LOW);
     }
 
@@ -388,11 +410,12 @@ export class VerificationService {
     // 4. Speed check (check last action)
     const lastAction = await this.recycleActionRepo.findOne({
       where: { userId: action.userId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
 
     if (lastAction && lastAction.id !== action.id) {
-      const timeDiff = (action.createdAt.getTime() - lastAction.createdAt.getTime()) / 1000; // seconds
+      const timeDiff =
+        (action.createdAt.getTime() - lastAction.createdAt.getTime()) / 1000; // seconds
       if (timeDiff > 0 && timeDiff < 10) {
         const lastDistance = this.calculateDistance(
           action.gpsLat,
@@ -410,9 +433,13 @@ export class VerificationService {
             details: {
               distance,
               gpsAccuracy: action.gpsAccuracy,
-              issues: [`Impossible speed detected: ${speed.toFixed(2)} m/s (max: ${this.MAX_SPEED} m/s)`],
+              issues: [
+                `Impossible speed detected: ${speed.toFixed(2)} m/s (max: ${this.MAX_SPEED} m/s)`,
+              ],
             },
-            suggestions: ['Please ensure GPS is accurate and you are at the correct location'],
+            suggestions: [
+              "Please ensure GPS is accurate and you are at the correct location",
+            ],
           };
         }
 
@@ -425,9 +452,13 @@ export class VerificationService {
             details: {
               distance,
               gpsAccuracy: action.gpsAccuracy,
-              issues: [`Impossible location jump: ${lastDistance.toFixed(1)}m in ${timeDiff.toFixed(1)}s`],
+              issues: [
+                `Impossible location jump: ${lastDistance.toFixed(1)}m in ${timeDiff.toFixed(1)}s`,
+              ],
             },
-            suggestions: ['Please ensure you are at the correct location and GPS is accurate'],
+            suggestions: [
+              "Please ensure you are at the correct location and GPS is accurate",
+            ],
           };
         }
       }
@@ -446,7 +477,8 @@ export class VerificationService {
     }
 
     // Calculate location score (0-1)
-    const accuracyScore = 1 - Math.min(action.gpsAccuracy / this.MAX_GPS_ACCURACY, 1);
+    const accuracyScore =
+      1 - Math.min(action.gpsAccuracy / this.MAX_GPS_ACCURACY, 1);
     const distanceScore = 1 - Math.min(distance / point.radius, 1);
     const locationScore = (accuracyScore + distanceScore) / 2;
 
@@ -484,16 +516,16 @@ export class VerificationService {
         score: 0.0,
         reason: ValidationMessages.DUPLICATE_IMAGE,
         details: {
-          issues: ['This exact image has already been submitted'],
+          issues: ["This exact image has already been submitted"],
         },
-        suggestions: ['Please capture a new, different image'],
+        suggestions: ["Please capture a new, different image"],
       };
     }
 
     // Check perceptual hash similarity
     const similarImages = await this.recycleActionRepo.find({
       where: { userId: action.userId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
       take: 100, // Check last 100 actions
     });
 
@@ -518,15 +550,20 @@ export class VerificationService {
           reason: ValidationMessages.IMAGE_TOO_SIMILAR,
           details: {
             hammingDistance,
-            issues: [`Image is too similar to a previous submission (similarity: ${hammingDistance}/64)`],
+            issues: [
+              `Image is too similar to a previous submission (similarity: ${hammingDistance}/64)`,
+            ],
           },
-          suggestions: ['Please capture a new, different image from a different angle'],
+          suggestions: [
+            "Please capture a new, different image from a different angle",
+          ],
         };
       }
     }
 
     // Calculate uniqueness score
-    const uniquenessScore = minHammingDistance > 10 ? 1.0 : minHammingDistance / 10;
+    const uniquenessScore =
+      minHammingDistance > 10 ? 1.0 : minHammingDistance / 10;
 
     return {
       valid: true,
@@ -555,15 +592,17 @@ export class VerificationService {
       return {
         valid: false,
         score: 0.0,
-        reason: 'Insufficient frame metadata',
+        reason: "Insufficient frame metadata",
         details: {
-          issues: ['Not enough frame data provided'],
+          issues: ["Not enough frame data provided"],
         },
-        suggestions: ['Please ensure all frames are captured and sent'],
+        suggestions: ["Please ensure all frames are captured and sent"],
       };
     }
 
-    const frames = action.frameMetadata.sort((a, b) => a.timestamp - b.timestamp);
+    const frames = action.frameMetadata.sort(
+      (a, b) => a.timestamp - b.timestamp,
+    );
     const firstTimestamp = frames[0].timestamp;
     const lastTimestamp = frames[frames.length - 1].timestamp;
     const windowMs = lastTimestamp - firstTimestamp;
@@ -574,18 +613,22 @@ export class VerificationService {
 
     // Check frame window (must be within 2 seconds)
     if (windowMs > this.FRAME_WINDOW_MS) {
-      issues.push(`Frames captured over ${(windowMs / 1000).toFixed(1)}s, must be within ${(this.FRAME_WINDOW_MS / 1000).toFixed(1)}s`);
-      suggestions.push('Try: Capture all frames quickly within 2 seconds');
+      issues.push(
+        `Frames captured over ${(windowMs / 1000).toFixed(1)}s, must be within ${(this.FRAME_WINDOW_MS / 1000).toFixed(1)}s`,
+      );
+      suggestions.push("Try: Capture all frames quickly within 2 seconds");
     }
 
     // Check frame gaps
     for (let i = 1; i < frames.length; i++) {
       const gap = frames[i].timestamp - frames[i - 1].timestamp;
       if (gap > maxGapMs) maxGapMs = gap;
-      
+
       if (gap > this.MAX_FRAME_GAP_MS) {
-        issues.push(`Gap of ${gap}ms between frames exceeds maximum ${this.MAX_FRAME_GAP_MS}ms`);
-        suggestions.push('Try: Capture frames continuously without pauses');
+        issues.push(
+          `Gap of ${gap}ms between frames exceeds maximum ${this.MAX_FRAME_GAP_MS}ms`,
+        );
+        suggestions.push("Try: Capture frames continuously without pauses");
       }
     }
 
@@ -619,9 +662,11 @@ export class VerificationService {
         details: {
           windowMs,
           maxGapMs,
-          issues: [`Object position changed too much between frames (x: ${xStdDev.toFixed(2)}, y: ${yStdDev.toFixed(2)})`],
+          issues: [
+            `Object position changed too much between frames (x: ${xStdDev.toFixed(2)}, y: ${yStdDev.toFixed(2)})`,
+          ],
         },
-        suggestions: ['Try: Keep camera steady and object in same position'],
+        suggestions: ["Try: Keep camera steady and object in same position"],
       };
     }
 
@@ -671,7 +716,12 @@ export class VerificationService {
   /**
    * Calculate distance between two coordinates (Haversine formula)
    */
-  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     const R = 6371000; // Earth radius in meters
     const dLat = this.toRad(lat2 - lat1);
     const dLon = this.toRad(lon2 - lon1);
@@ -716,7 +766,9 @@ export class VerificationService {
     if (values.length === 0) return 0;
 
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+    const variance =
+      values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
+      values.length;
     return Math.sqrt(variance);
   }
 }
