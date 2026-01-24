@@ -1,19 +1,25 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { RecycleAction, ActionStatus } from '../../entities/recycle-action.entity';
-import { MaterialType } from '../../entities/recycling-point.entity';
-import { RecyclingPoint } from '../../entities/recycling-point.entity';
-import { User } from '../../entities/user.entity';
-import { StorageService } from '../storage/storage.service';
-import { VerificationService } from '../verification/verification.service';
-import { TrustService } from '../trust/trust.service';
-import { RewardsService } from '../rewards/rewards.service';
-import { FraudService } from '../fraud/fraud.service';
-import { AuditService } from '../audit/audit.service';
-import { AuditActionType } from '../../entities/audit-log.entity';
-import { PaginationDto, PaginatedResponse } from '../../common/dto/pagination.dto';
-import { v4 as uuidv4 } from 'uuid';
+import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
+import {
+  RecycleAction,
+  ActionStatus,
+} from "../../entities/recycle-action.entity";
+import { MaterialType } from "../../entities/recycling-point.entity";
+import { RecyclingPoint } from "../../entities/recycling-point.entity";
+import { User } from "../../entities/user.entity";
+import { StorageService } from "../storage/storage.service";
+import { VerificationService } from "../verification/verification.service";
+import { TrustService } from "../trust/trust.service";
+import { RewardsService } from "../rewards/rewards.service";
+import { FraudService } from "../fraud/fraud.service";
+import { AuditService } from "../audit/audit.service";
+import { AuditActionType } from "../../entities/audit-log.entity";
+import {
+  PaginationDto,
+  PaginatedResponse,
+} from "../../common/dto/pagination.dto";
+import { v4 as uuidv4 } from "uuid";
 
 export interface SubmitActionDto {
   recyclingPointId: string;
@@ -73,7 +79,14 @@ export class RecycleActionsService {
     imageFile: any,
     ipAddress?: string,
     userAgent?: string,
-  ): Promise<{ verified: boolean; points?: number; reason?: string; actionId: string; status: string; verificationScore?: number }> {
+  ): Promise<{
+    verified: boolean;
+    points?: number;
+    reason?: string;
+    actionId: string;
+    status: string;
+    verificationScore?: number;
+  }> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -89,7 +102,10 @@ export class RecycleActionsService {
         return {
           verified: existing.status === ActionStatus.VERIFIED,
           points: existing.pointsAwarded || undefined,
-          reason: existing.status === ActionStatus.REJECTED ? 'Action rejected' : undefined,
+          reason:
+            existing.status === ActionStatus.REJECTED
+              ? "Action rejected"
+              : undefined,
           actionId: existing.id,
           status: existing.status,
           verificationScore: existing.verificationScore || undefined,
@@ -102,26 +118,25 @@ export class RecycleActionsService {
       });
 
       if (!point || !point.isActive) {
-        throw new BadRequestException('Recycling point not found or inactive');
+        throw new BadRequestException("Recycling point not found or inactive");
       }
 
       // Validate user
-      const user = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      const user = await queryRunner.manager.findOne(User, {
+        where: { id: userId },
+      });
       if (!user) {
-        throw new BadRequestException('User not found');
+        throw new BadRequestException("User not found");
       }
 
       // Upload image
       const actionId = uuidv4();
-      const { url: imageUrl, hash: uploadedHash } = await this.storageService.uploadImage(
-        imageFile,
-        userId,
-        actionId,
-      );
+      const { url: imageUrl, hash: uploadedHash } =
+        await this.storageService.uploadImage(imageFile, userId, actionId);
 
       // Verify image hash matches
       if (uploadedHash !== dto.imageHash) {
-        throw new BadRequestException('Image hash mismatch');
+        throw new BadRequestException("Image hash mismatch");
       }
 
       // Create action
@@ -154,7 +169,7 @@ export class RecycleActionsService {
       // Audit log
       await this.auditService.log(AuditActionType.ACTION_SUBMITTED, {
         userId,
-        entityType: 'recycle_action',
+        entityType: "recycle_action",
         entityId: actionId,
         ipAddress,
         userAgent,
@@ -162,18 +177,23 @@ export class RecycleActionsService {
 
       // Verify action (async - don't await)
       this.verifyAndProcess(actionId).catch((error) => {
-        this.logger.error(`Verification failed for action ${actionId}: ${error.message}`);
+        this.logger.error(
+          `Verification failed for action ${actionId}: ${error.message}`,
+        );
       });
 
       return {
         verified: false, // Will be updated after verification
-        reason: 'Verification in progress',
+        reason: "Verification in progress",
         actionId: action.id,
         status: ActionStatus.PENDING,
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`Failed to submit action: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to submit action: ${error.message}`,
+        error.stack,
+      );
       throw error;
     } finally {
       await queryRunner.release();
@@ -190,7 +210,7 @@ export class RecycleActionsService {
 
       const action = await this.actionRepo.findOne({
         where: { id: actionId },
-        relations: ['user'],
+        relations: ["user"],
       });
 
       if (!action) {
@@ -207,15 +227,21 @@ export class RecycleActionsService {
         // Audit log
         await this.auditService.log(AuditActionType.ACTION_VERIFIED, {
           userId: action.userId,
-          entityType: 'recycle_action',
+          entityType: "recycle_action",
           entityId: actionId,
           metadata: { points, score: verification.score },
         });
 
-        this.logger.log(`Action ${actionId} verified: ${points} points awarded`);
+        this.logger.log(
+          `Action ${actionId} verified: ${points} points awarded`,
+        );
       } else {
         // Decrease trust
-        await this.trustService.applyPenalty(action.userId, 'rejected', actionId);
+        await this.trustService.applyPenalty(
+          action.userId,
+          "rejected",
+          actionId,
+        );
 
         // Check for fraud
         await this.fraudService.checkPatterns(actionId);
@@ -223,7 +249,7 @@ export class RecycleActionsService {
         // Audit log
         await this.auditService.log(AuditActionType.ACTION_REJECTED, {
           userId: action.userId,
-          entityType: 'recycle_action',
+          entityType: "recycle_action",
           entityId: actionId,
           metadata: { reason: verification.reason, score: verification.score },
         });
@@ -231,7 +257,10 @@ export class RecycleActionsService {
         this.logger.warn(`Action ${actionId} rejected: ${verification.reason}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to process action ${actionId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to process action ${actionId}: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -244,8 +273,8 @@ export class RecycleActionsService {
   ): Promise<PaginatedResponse<RecycleAction>> {
     const [data, total] = await this.actionRepo.findAndCount({
       where: { userId },
-      relations: ['recyclingPoint', 'reward'],
-      order: { createdAt: 'DESC' },
+      relations: ["recyclingPoint", "reward"],
+      order: { createdAt: "DESC" },
       skip: pagination.skip,
       take: pagination.take,
     });
