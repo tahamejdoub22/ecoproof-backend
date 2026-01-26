@@ -108,10 +108,13 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'Ecoproof API Docs',
       swaggerOptions: {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        docExpansion: 'none',
+        filter: true,
       },
     });
   }
