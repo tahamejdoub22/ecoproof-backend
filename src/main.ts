@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
@@ -62,7 +62,7 @@ async function bootstrap() {
           const constraints = Object.values(error.constraints || {});
           return `${error.property}: ${constraints.join(', ')}`;
         });
-        return new ValidationPipe().createExceptionFactory()(errors);
+        return new BadRequestException(messages);
       },
     }),
   );
@@ -112,6 +112,9 @@ async function bootstrap() {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        filter: true,
+        docExpansion: 'none',
+        displayRequestDuration: true,
       },
     });
   }
