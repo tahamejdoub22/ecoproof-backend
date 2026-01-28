@@ -57,13 +57,6 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-      exceptionFactory: (errors) => {
-        const messages = errors.map((error) => {
-          const constraints = Object.values(error.constraints || {});
-          return `${error.property}: ${constraints.join(', ')}`;
-        });
-        return new ValidationPipe().createExceptionFactory()(errors);
-      },
     }),
   );
 
@@ -112,6 +105,9 @@ async function bootstrap() {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        docExpansion: 'none',
+        filter: true,
+        displayRequestDuration: true,
       },
     });
   }
