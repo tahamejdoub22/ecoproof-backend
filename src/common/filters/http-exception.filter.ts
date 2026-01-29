@@ -55,11 +55,25 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (Array.isArray(responseObj.message)) {
           message = 'Validation failed';
           details = {
-            fields: responseObj.message.map((msg: string) => {
-              const match = msg.match(/^(\w+)\s/);
+            fields: responseObj.message.map((msg: any) => {
+              // Handle structured validation errors
+              if (typeof msg === 'object' && msg !== null && msg.field && msg.message) {
+                return {
+                  field: msg.field,
+                  message: msg.message,
+                };
+              }
+              // Handle legacy string errors
+              if (typeof msg === 'string') {
+                const match = msg.match(/^(\w+)[:\s]/);
+                return {
+                  field: match ? match[1] : 'unknown',
+                  message: msg,
+                };
+              }
               return {
-                field: match ? match[1] : 'unknown',
-                message: msg,
+                field: 'unknown',
+                message: String(msg),
               };
             }),
           };

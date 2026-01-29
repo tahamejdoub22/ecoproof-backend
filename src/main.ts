@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
@@ -58,11 +58,15 @@ async function bootstrap() {
         enableImplicitConversion: true,
       },
       exceptionFactory: (errors) => {
-        const messages = errors.map((error) => {
-          const constraints = Object.values(error.constraints || {});
-          return `${error.property}: ${constraints.join(', ')}`;
+        const formattedErrors = errors.map((error) => ({
+          field: error.property,
+          message: Object.values(error.constraints || {}).join(', '),
+        }));
+        return new BadRequestException({
+          message: formattedErrors,
+          error: 'Bad Request',
+          statusCode: 400,
         });
-        return new ValidationPipe().createExceptionFactory()(errors);
       },
     }),
   );
