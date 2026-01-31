@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { validationExceptionFactory } from './common/utils/validation-exception.factory';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -57,13 +58,7 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-      exceptionFactory: (errors) => {
-        const messages = errors.map((error) => {
-          const constraints = Object.values(error.constraints || {});
-          return `${error.property}: ${constraints.join(', ')}`;
-        });
-        return new ValidationPipe().createExceptionFactory()(errors);
-      },
+      exceptionFactory: validationExceptionFactory,
     }),
   );
 
